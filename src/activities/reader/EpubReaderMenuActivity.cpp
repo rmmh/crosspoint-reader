@@ -10,10 +10,10 @@
 EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                                const std::string& title, const int currentPage, const int totalPages,
                                                const int bookProgressPercent, const uint8_t currentOrientation,
-                                               const bool hasFootnotes, const bool hasDictionary,
-                                               std::string activeDictName)
+                                               const bool hasFootnotes, bool hasBookmarks,
+                                               const bool hasDictionary, std::string activeDictName)
     : Activity("EpubReaderMenu", renderer, mappedInput),
-      menuItems(buildMenuItems(hasFootnotes, hasDictionary)),
+      menuItems(buildMenuItems(hasFootnotes, hasBookmarks, hasDictionary)),
       title(title),
       pendingOrientation(currentOrientation),
       currentPage(currentPage),
@@ -22,6 +22,7 @@ EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInpu
       activeDictName(std::move(activeDictName)) {}
 
 std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuItems(bool hasFootnotes,
+                                                                                     bool hasBookmarks,
                                                                                      bool hasDictionary) {
   std::vector<MenuItem> items;
   items.reserve(14);
@@ -34,7 +35,10 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
     items.push_back({MenuAction::LOOKUP_HISTORY, StrId::STR_LOOKUP_HISTORY});
   }
   items.push_back({MenuAction::SET_BOOK_DICTIONARY, StrId::STR_BOOK_DICTIONARY});
-  items.push_back({MenuAction::BOOKMARKS, StrId::STR_BOOKMARKS});
+  if (hasBookmarks) {
+    items.push_back({MenuAction::BOOKMARKS, StrId::STR_BOOKMARKS});
+  }
+  items.push_back({MenuAction::TOGGLE_BOOKMARK, StrId::STR_TOGGLE_BOOKMARK});
   items.push_back({MenuAction::ROTATE_SCREEN, StrId::STR_ORIENTATION});
   items.push_back({MenuAction::AUTO_PAGE_TURN, StrId::STR_AUTO_TURN_PAGES_PER_MIN});
   items.push_back({MenuAction::GO_TO_PERCENT, StrId::STR_GO_TO_PERCENT});
