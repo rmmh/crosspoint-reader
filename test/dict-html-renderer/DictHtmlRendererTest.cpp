@@ -4,17 +4,13 @@
 // complete span output against expected values. Also verifies that the streaming
 // path (renderFromFileStreaming, reading the .dict file via the HalStorage stub)
 // produces identical spans, plus boundary cases and the IPA utility functions.
-//
-// Build and run via test/dict-html-renderer/run.sh (host; provides stub
-// HalStorage.h / Logging.h so the file-based renderer compiles off-device).
-// Exit code: 0 = all pass, 1 = any failure or unexpected unknown tags.
-// DICT_HTML_RENDERER_TRACK_UNKNOWN is defined by the build script via -D flag.
+// DICT_HTML_RENDERER_TRACK_UNKNOWN and DICT_HTML_TEST_DATA are defined by CMakeLists.txt.
+
+#include <gtest/gtest.h>
 
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <fstream>
-#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -27,10 +23,7 @@
 // ---------------------------------------------------------------------------
 static std::string readFile(const std::string& path) {
   std::ifstream f(path, std::ios::binary);
-  if (!f) {
-    std::cerr << "ERROR: cannot open " << path << "\n";
-    return {};
-  }
+  if (!f) return {};
   std::ostringstream ss;
   ss << f.rdbuf();
   return ss.str();
@@ -83,30 +76,6 @@ static ExpectedSpan S(const char* t, bool nl = false, bool bold = false, bool it
   return {t, bold, italic, ul, strike, li, nl, indent};
 }
 
-static void printSpan(int idx, const StyledSpan& s) {
-  printf("  [%2d] \"%s\"", idx, s.text ? s.text : "(null)");
-  if (s.bold) printf(" bold");
-  if (s.italic) printf(" italic");
-  if (s.underline) printf(" underline");
-  if (s.strikethrough) printf(" strike");
-  if (s.isListItem) printf(" listItem");
-  if (s.newlineBefore) printf(" newline");
-  if (s.indentLevel) printf(" indent=%d", s.indentLevel);
-  printf("\n");
-}
-
-static void printExpected(int idx, const ExpectedSpan& e) {
-  printf("  [%2d] \"%s\"", idx, e.text);
-  if (e.bold) printf(" bold");
-  if (e.italic) printf(" italic");
-  if (e.underline) printf(" underline");
-  if (e.strikethrough) printf(" strike");
-  if (e.isListItem) printf(" listItem");
-  if (e.newlineBefore) printf(" newline");
-  if (e.indentLevel) printf(" indent=%d", e.indentLevel);
-  printf("\n");
-}
-
 static bool spanMatches(const StyledSpan& got, const ExpectedSpan& exp) {
   if (!got.text || strcmp(got.text, exp.text) != 0) return false;
   if (got.bold != exp.bold) return false;
@@ -120,8 +89,7 @@ static bool spanMatches(const StyledSpan& got, const ExpectedSpan& exp) {
 }
 
 // A span copied out of the renderer (text owned), for comparing batch render()
-// output against the streaming renderFromFileStreaming() output. Streaming
-// delivers span.text valid only during the callback, so it must be copied.
+// output against the streaming renderFromFileStreaming() output.
 struct CollectedSpan {
   std::string text;
   bool bold, italic, underline, strikethrough, isListItem, newlineBefore;
@@ -138,70 +106,8 @@ static CollectedSpan collect(const StyledSpan& s) {
           s.strikethrough,      s.isListItem, s.newlineBefore, s.indentLevel};
 }
 
-// SpanSink callback for renderFromFileStreaming: appends each delivered span to a
-// std::vector<CollectedSpan>* passed as ctx (copying text immediately).
 static void collectSink(void* ctx, const StyledSpan& s) {
   static_cast<std::vector<CollectedSpan>*>(ctx)->push_back(collect(s));
-}
-
-// Run one test entry. Passes full raw entry content to renderer.render(),
-// the same way on-device lookup code does. Returns true on pass.
-static bool runTest(const std::string& word, const std::string& content, DictHtmlRenderer& renderer,
-                    const std::vector<ExpectedSpan>& expected, bool expectUnknownTags = false) {
-  printf("\n=== %s ===\n", word.c_str());
-
-#ifdef DICT_HTML_RENDERER_TRACK_UNKNOWN
-  renderer.currentEntryName = word.c_str();
-  renderer.unknownTagCount = 0;
-#endif
-
-  const auto& spans = renderer.render(content.c_str(), static_cast<int>(content.size()));
-
-  printf("  Spans (%zu):\n", spans.size());
-  for (int i = 0; i < static_cast<int>(spans.size()); i++) {
-    printSpan(i, spans[i]);
-  }
-
-  bool pass = true;
-
-#ifdef DICT_HTML_RENDERER_TRACK_UNKNOWN
-  if (renderer.unknownTagCount > 0) {
-    if (!expectUnknownTags) pass = false;
-    for (int i = 0; i < renderer.unknownTagCount; i++) {
-      const auto& u = renderer.unknownTags[i];
-      printf("\n%s: Unknown tag encountered\n", expectUnknownTags ? "INFO" : "ERROR");
-      printf("  Tag:     <%s>\n", u.tag);
-      printf("  Entry:   %s\n", u.entry);
-      printf("  Context: [%s] <%s>%s</%s> [%s]\n", u.wordBefore, u.tag, u.tagContents, u.tag, u.wordAfter);
-      if (!expectUnknownTags) {
-        printf("  Action:  Tag was blindly stripped. Add it to the renderer's tag registry\n");
-        printf("           with an explicit handling decision (strip-keep, strip-all, format, etc.)\n");
-        printf("           then add a test case for it to test/dictionaries/html-definitions/.\n");
-      }
-    }
-  }
-#endif
-
-  if (spans.size() != expected.size()) {
-    printf("  FAIL: expected %zu spans, got %zu\n", expected.size(), spans.size());
-    printf("  Expected:\n");
-    for (int i = 0; i < static_cast<int>(expected.size()); i++) printExpected(i, expected[i]);
-    return false;
-  }
-
-  for (int i = 0; i < static_cast<int>(expected.size()); i++) {
-    if (!spanMatches(spans[i], expected[i])) {
-      pass = false;
-      printf("  FAIL at span [%d]:\n", i);
-      printf("    got:      ");
-      printSpan(i, spans[i]);
-      printf("    expected: ");
-      printExpected(i, expected[i]);
-    }
-  }
-
-  if (pass) printf("  PASS\n");
-  return pass;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,17 +120,7 @@ static bool runTest(const std::string& word, const std::string& content, DictHtm
 //   <p>----------</p>        (closing delimiter)
 // ---------------------------------------------------------------------------
 
-// AbbrExpand
-// Full entry:
-//   <p>Three abbreviations should expand inline with their full title in parentheses.</p>
-//   <p>Case 1: single-word title. Expected: c. (circa)</p>
-//   <p>Case 2: multi-word title containing a space. Expected: AD (anno Domini)</p>
-//   <p>Case 3: italic element inside abbr. Expected: f. (filius) with f. rendered italic.</p>
-//   <p>----------</p>
-//   <p>Abbreviation one: <abbr title="circa">c.</abbr></p>
-//   <p>Abbreviation two: <abbr title="anno Domini">AD</abbr></p>
-//   <p>Abbreviation three: <abbr title="filius"><i>f.</i></abbr></p>
-//   <p>----------</p>
+// BlazeSilent → AbbrExpand
 static const std::vector<ExpectedSpan> kAbbrExpand = {
     S("Three abbreviations should expand inline with their full title in parentheses.", true),
     S("Case 1: single-word title. Expected: c. (circa)", true),
@@ -243,14 +139,7 @@ static const std::vector<ExpectedSpan> kAbbrExpand = {
     S("----------", true),
 };
 
-// BlockStrip
-// Full entry:
-//   <p>Nine block tags and all their children should be stripped entirely.</p>
-//   <p>Nothing should appear between the two rules below.</p>
-//   <p>Tags tested: hiero (...), svg (...), math (...), gallery, nowiki, poem, ref, REF, img (standalone).</p>
-//   <p>----------</p>
-//   [all block-strip tags — produce no spans]
-//   <p>----------</p>
+// ClearSvg → BlockStrip
 static const std::vector<ExpectedSpan> kBlockStrip = {
     S("Nine block tags and all their children should be stripped entirely.", true),
     S("Nothing should appear between the two rules below.", true),
@@ -261,13 +150,7 @@ static const std::vector<ExpectedSpan> kBlockStrip = {
     S("----------", true),
 };
 
-// BlockStruct
-// Full entry:
-//   <p>Block structure elements. Expected output in order:</p>
-//   <p>Two separate paragraphs. Two div blocks. Three lines separated by br. ...</p>
-//   <p>----------</p>
-//   [block structure test HTML — 18 spans]
-//   <p>----------</p>
+// DarkMath → BlockStruct
 static const std::vector<ExpectedSpan> kBlockStruct = {
     S("Block structure elements. Expected output in order:", true),
     S("Two separate paragraphs. Two div blocks. Three lines separated by br. An indented blockquote. A numbered list "
@@ -296,14 +179,7 @@ static const std::vector<ExpectedSpan> kBlockStruct = {
     S("----------", true),
 };
 
-// FormatTags
-// Full entry:
-//   <p>Inline formatting tags. Expected words with their styles:</p>
-//   <p>bold (b), bold (strong), italic (i), italic (em), underline (u), ...</p>
-//   <p>Nested: bold-italic (b+i). Triple: bold-italic-underline (b+i+u).</p>
-//   <p>----------</p>
-//   [format test HTML — 23 spans; FORMAT_SMALL tags merge with adjacent text]
-//   <p>----------</p>
+// EmptyGallery → FormatTags
 static const std::vector<ExpectedSpan> kFormatTags = {
     S("Inline formatting tags. Expected words with their styles:", true),
     S("bold (b), bold (strong), italic (i), italic (em), underline (u), strikethrough (s), subscript 2 in H2O (sub), "
@@ -347,20 +223,7 @@ static const std::vector<ExpectedSpan> kFormatTags = {
     S("----------", true),
 };
 
-// StripKeep
-// Full entry:
-//   <p>Four cases where the tag is stripped but its text content is kept.</p>
-//   <p>Case 1: span tag stripped, text kept. Expected: visible span text</p>
-//   <p>Case 2: single unknown tag stripped, text kept. Expected: visible unknown text</p>
-//   <p>Case 3: nested unknown tags both stripped, innermost text kept. ...</p>
-//   <p>Case 4: anchor tag stripped, text kept. Expected: visible anchor text</p>
-//   <p>----------</p>
-//   <p><span>visible span text</span></p>
-//   <p><unknowntag>visible unknown text</unknowntag></p>
-//   <p><outertag><innertag>visible nested text</innertag></outertag></p>
-//   <p><a href="#">visible anchor text</a></p>
-//   <p>----------</p>
-// unknowntag / outertag / innertag are intentional unknown tags — expectUnknownTags=true.
+// FrostNowiki → StripKeep (has intentional unknown tags)
 static const std::vector<ExpectedSpan> kStripKeep = {
     S("Four cases where the tag is stripped but its text content is kept.", true),
     S("Case 1: span tag stripped, text kept. Expected: visible span text", true),
@@ -375,13 +238,7 @@ static const std::vector<ExpectedSpan> kStripKeep = {
     S("----------", true),
 };
 
-// WikiAnnot
-// Full entry:
-//   <p>Eight wikitext annotation tags. Each is a self-closing tag of the form XX:YY ...</p>
-//   <p>Expected inline text in order: four, oikos, la, sharp, noun, Grek, ameba, female</p>
-//   <p>----------</p>
-//   <p>count: <t:four/> origin: <tr:oikos/> ... identifier: <id:female/></p>
-//   <p>----------</p>
+// GlowPoem → WikiAnnot
 static const std::vector<ExpectedSpan> kWikiAnnot = {
     S("Eight wikitext annotation tags. Each is a self-closing tag of the form XX:YY where the text to render is the "
       "suffix YY (the part after the colon).",
@@ -411,16 +268,7 @@ static const std::vector<ExpectedSpan> kWikiAnnot = {
     S("----------", true),
 };
 
-// HtmlEntities
-// Full entry:
-//   <p>HTML named entities resolved to UTF-8. ...</p>
-//   <p>----------</p>
-//   <p>Brackets: &lsqb;enclosed&rsqb;</p>
-//   <p>Non-breaking space: left&nbsp;right</p>
-//   <p>En dash: 1939&ndash;1945</p>
-//   <p>Zero-width: be&lrm;fore</p>           (lrm dropped → "before")
-//   <p>Unknown: be&unknownentity;fore</p>    (unknown dropped → "before")
-//   <p>----------</p>
+// HazeEntity → HtmlEntities
 static const std::vector<ExpectedSpan> kHtmlEntities = {
     S("HTML named entities resolved to UTF-8. Expected: brackets, space, dash, zero-width marks dropped, unknown "
       "entity dropped.",
@@ -437,380 +285,325 @@ static const std::vector<ExpectedSpan> kHtmlEntities = {
 };
 
 // ---------------------------------------------------------------------------
-// main
+// Test fixture — loads the dictionary once per suite; fresh renderer per test.
 // ---------------------------------------------------------------------------
 
-int main(int argc, char** argv) {
-  const char* dictDir = (argc > 1) ? argv[1] : "test/dictionaries/html-definitions";
-
-  std::string idxPath = std::string(dictDir) + "/html-definitions.idx";
-  std::string dictPath = std::string(dictDir) + "/html-definitions.dict";
-
-  std::string idxData = readFile(idxPath);
-  std::string dictData = readFile(dictPath);
-
-  if (idxData.empty() || dictData.empty()) {
-    fprintf(stderr, "ERROR: Could not read dictionary files from %s\n", dictDir);
-    return 1;
+class DictHtmlRendererTest : public ::testing::Test {
+ public:
+  static void SetUpTestSuite() {
+    dictPath_ = std::string(DICT_HTML_TEST_DATA) + "/html-definitions.dict";
+    std::string idxPath = std::string(DICT_HTML_TEST_DATA) + "/html-definitions.idx";
+    idxData_ = readFile(idxPath);
+    dictData_ = readFile(dictPath_);
+    ASSERT_FALSE(idxData_.empty()) << "Could not read " << idxPath;
+    ASSERT_FALSE(dictData_.empty()) << "Could not read " << dictPath_;
+    entries_ = parseIdx(idxData_);
+    ASSERT_FALSE(entries_.empty()) << "No entries found in idx";
   }
 
-  auto entries = parseIdx(idxData);
-  if (entries.empty()) {
-    fprintf(stderr, "ERROR: No entries found in idx\n");
-    return 1;
+ protected:
+  // Fresh renderer per test (avoids cross-test state pollution).
+  DictHtmlRenderer renderer_;
+
+  std::string getEntryContent(const char* word) {
+    for (const auto& e : entries_) {
+      if (e.word == word) {
+        if (e.offset + e.length > dictData_.size()) return {};
+        return dictData_.substr(e.offset, e.length);
+      }
+    }
+    return {};
   }
 
-  printf("Loaded %zu entries from %s\n", entries.size(), dictDir);
+  const DictEntry* findEntry(const char* word) {
+    for (const auto& e : entries_) {
+      if (e.word == word) return &e;
+    }
+    return nullptr;
+  }
 
-  DictHtmlRenderer renderer;
-  int passed = 0;
-  int failed = 0;
-  int unknownTagErrors = 0;
+  // Assert that renderer.render() of the named entry's content matches expected spans.
+  void checkEntry(const char* word, const std::vector<ExpectedSpan>& expected, bool expectUnknownTags = false) {
+    SCOPED_TRACE(word);
+    std::string content = getEntryContent(word);
+    ASSERT_FALSE(content.empty()) << "Entry '" << word << "' not found or out of bounds";
 
+#ifdef DICT_HTML_RENDERER_TRACK_UNKNOWN
+    renderer_.currentEntryName = word;
+    renderer_.unknownTagCount = 0;
+#endif
+
+    const auto& spans = renderer_.render(content.c_str(), static_cast<int>(content.size()));
+
+    ASSERT_EQ(spans.size(), expected.size()) << "span count mismatch";
+    for (int i = 0; i < static_cast<int>(expected.size()); i++) {
+      EXPECT_TRUE(spanMatches(spans[i], expected[i]))
+          << "span[" << i << "] mismatch: got \"" << (spans[i].text ? spans[i].text : "(null)") << "\", expected \""
+          << expected[i].text << "\"";
+    }
+
+#ifdef DICT_HTML_RENDERER_TRACK_UNKNOWN
+    if (!expectUnknownTags) {
+      EXPECT_EQ(renderer_.unknownTagCount, 0) << "unexpected unknown tags";
+    }
+#endif
+  }
+
+  static std::string idxData_;
+  static std::string dictData_;
+  static std::vector<DictEntry> entries_;
+  static std::string dictPath_;
+};
+
+std::string DictHtmlRendererTest::idxData_;
+std::string DictHtmlRendererTest::dictData_;
+std::vector<DictEntry> DictHtmlRendererTest::entries_;
+std::string DictHtmlRendererTest::dictPath_;
+
+// ---------------------------------------------------------------------------
+// Entry tests (one per dictionary entry)
+// ---------------------------------------------------------------------------
+
+TEST_F(DictHtmlRendererTest, BlazeSilent_AbbrExpand) { checkEntry("BlazeSilent", kAbbrExpand); }
+
+TEST_F(DictHtmlRendererTest, ClearSvg_BlockStrip) { checkEntry("ClearSvg", kBlockStrip); }
+
+TEST_F(DictHtmlRendererTest, DarkMath_BlockStruct) { checkEntry("DarkMath", kBlockStruct); }
+
+TEST_F(DictHtmlRendererTest, EmptyGallery_FormatTags) { checkEntry("EmptyGallery", kFormatTags); }
+
+TEST_F(DictHtmlRendererTest, FrostNowiki_StripKeep) {
+  checkEntry("FrostNowiki", kStripKeep, /*expectUnknownTags=*/true);
+}
+
+TEST_F(DictHtmlRendererTest, GlowPoem_WikiAnnot) { checkEntry("GlowPoem", kWikiAnnot); }
+
+TEST_F(DictHtmlRendererTest, HazeEntity_HtmlEntities) { checkEntry("HazeEntity", kHtmlEntities); }
+
+// ---------------------------------------------------------------------------
+// Group D: streaming parity — renderFromFileStreaming() must produce exactly the
+// same spans as the batch render() for every entry. Exercises the Stage 2b
+// streaming span-sink path (reads the .dict file via the HalStorage stub; never
+// materializes the whole-definition textBuf/spans vector).
+// ---------------------------------------------------------------------------
+
+TEST_F(DictHtmlRendererTest, StreamingParity) {
   struct TestCase {
     const char* word;
-    const std::vector<ExpectedSpan>& expected;
     bool expectUnknownTags;
   };
-
-  const TestCase tests[] = {
-      {"BlazeSilent", kAbbrExpand, false},  {"ClearSvg", kBlockStrip, false},  {"DarkMath", kBlockStruct, false},
-      {"EmptyGallery", kFormatTags, false}, {"FrostNowiki", kStripKeep, true}, {"GlowPoem", kWikiAnnot, false},
-      {"HazeEntity", kHtmlEntities, false},
+  const TestCase cases[] = {
+      {"BlazeSilent", false}, {"ClearSvg", false}, {"DarkMath", false},   {"EmptyGallery", false},
+      {"FrostNowiki", true},  {"GlowPoem", false}, {"HazeEntity", false},
   };
 
-  for (const auto& test : tests) {
-    const DictEntry* found = nullptr;
-    for (const auto& e : entries) {
-      if (e.word == test.word) {
-        found = &e;
-        break;
-      }
+  for (const auto& tc : cases) {
+    SCOPED_TRACE(tc.word);
+    const DictEntry* found = findEntry(tc.word);
+    ASSERT_NE(found, nullptr) << "entry not found: " << tc.word;
+    ASSERT_LE(found->offset + found->length, dictData_.size()) << "entry out of bounds";
+
+    const std::string raw = dictData_.substr(found->offset, found->length);
+
+    // Batch spans — copied out, since render() reuses its buffer on the next call.
+    std::vector<CollectedSpan> batch;
+    for (const auto& s : renderer_.render(raw.c_str(), static_cast<int>(raw.size()))) batch.push_back(collect(s));
+
+    // Streamed spans read from the .dict file.
+    std::vector<CollectedSpan> stream;
+    DictHtmlRenderer::SpanSink sink{&stream, &collectSink};
+    renderer_.renderFromFileStreaming(dictPath_.c_str(), found->offset, found->length, sink);
+
+    EXPECT_EQ(batch.size(), stream.size()) << "batch/stream span count mismatch for: " << tc.word;
+    const size_t n = std::min(batch.size(), stream.size());
+    for (size_t i = 0; i < n; i++) {
+      EXPECT_EQ(batch[i], stream[i]) << "span[" << i << "] mismatch for: " << tc.word;
     }
-    if (!found) {
-      printf("\n=== %s ===\n  FAIL: entry not found in dictionary\n", test.word);
-      failed++;
-      continue;
-    }
-    if (found->offset + found->length > dictData.size()) {
-      printf("\n=== %s ===\n  FAIL: entry out of bounds\n", test.word);
-      failed++;
-      continue;
-    }
-
-    std::string raw = dictData.substr(found->offset, found->length);
-
-#ifdef DICT_HTML_RENDERER_TRACK_UNKNOWN
-    renderer.unknownTagCount = 0;
-    renderer.currentEntryName = test.word;
-#endif
-
-    bool pass = runTest(test.word, raw, renderer, test.expected, test.expectUnknownTags);
-
-#ifdef DICT_HTML_RENDERER_TRACK_UNKNOWN
-    if (renderer.unknownTagCount > 0 && !test.expectUnknownTags) unknownTagErrors += renderer.unknownTagCount;
-    if (renderer.unknownTagCount > 0 && test.expectUnknownTags)
-      printf("  (unknown tags expected for this entry — %d recorded)\n", renderer.unknownTagCount);
-#endif
-
-    if (pass)
-      passed++;
-    else
-      failed++;
   }
+}
 
-  // ---------------------------------------------------------------------------
-  // Group D: streaming parity — renderFromFileStreaming() must produce exactly the
-  // same spans as the batch render() for every entry. Exercises the Stage 2b
-  // streaming span-sink path (reads the .dict file via the HalStorage stub; never
-  // materializes the whole-definition textBuf/spans vector).
-  // ---------------------------------------------------------------------------
-  {
-    printf("\n=== streaming parity (renderFromFileStreaming vs render) ===\n");
-    bool allPass = true;
-    for (const auto& test : tests) {
-      const DictEntry* found = nullptr;
-      for (const auto& e : entries) {
-        if (e.word == test.word) {
-          found = &e;
-          break;
-        }
-      }
-      if (!found || found->offset + found->length > dictData.size()) {
-        printf("  %s: entry unavailable FAIL\n", test.word);
-        allPass = false;
-        continue;
-      }
-      const std::string raw = dictData.substr(found->offset, found->length);
+// ---------------------------------------------------------------------------
+// B1: parseError — malformed XML produces partial output
+// The renderer wraps input in <_root>...</_root>. Unclosed tags cause a parse
+// error, but partial spans accumulated before the error are still returned.
+// ---------------------------------------------------------------------------
+TEST_F(DictHtmlRendererTest, ParseError_PartialOutput) {
+  const auto& badSpans = renderer_.render("<p>unclosed", 11);
+  ASSERT_EQ(badSpans.size(), 1u) << "malformed XML: expected 1 partial span";
+  EXPECT_TRUE(badSpans[0].text && strcmp(badSpans[0].text, "unclosed") == 0) << "partial span text is 'unclosed'";
+}
 
-      // Batch spans — copied out, since render() reuses its buffer on the next call.
-      std::vector<CollectedSpan> batch;
-      for (const auto& s : renderer.render(raw.c_str(), static_cast<int>(raw.size()))) batch.push_back(collect(s));
-
-      // Streamed spans read from the .dict file.
-      std::vector<CollectedSpan> stream;
-      DictHtmlRenderer::SpanSink sink{&stream, &collectSink};
-      renderer.renderFromFileStreaming(dictPath.c_str(), found->offset, found->length, sink);
-
-      bool match = batch.size() == stream.size();
-      for (size_t i = 0; match && i < batch.size(); i++) match = (batch[i] == stream[i]);
-      printf("  %s: batch %zu / stream %zu spans %s\n", test.word, batch.size(), stream.size(),
-             match ? "OK" : "MISMATCH");
-      if (!match) allPass = false;
-    }
-    printf("  %s\n", allPass ? "PASS" : "FAIL");
-    if (allPass)
-      passed++;
-    else
-      failed++;
+// ---------------------------------------------------------------------------
+// B2: Large input — 100 paragraphs of 90 chars each (9000 bytes)
+// Dynamic buffers handle all 100 paragraphs; every span must have valid text.
+// ---------------------------------------------------------------------------
+TEST_F(DictHtmlRendererTest, LargeInput_100Paragraphs) {
+  std::string bigHtml;
+  bigHtml.reserve(100 * 96);
+  for (int i = 0; i < 100; i++) {
+    bigHtml += "<p>";
+    bigHtml.append(90, 'A');
+    bigHtml += "</p>";
   }
-
-  // ---------------------------------------------------------------------------
-  // B1: parseError — malformed XML produces partial output
-  // The renderer wraps input in <_root>...</_root>. Unclosed tags cause a parse
-  // error, but partial spans accumulated before the error are still returned.
-  // ---------------------------------------------------------------------------
-  {
-    printf("\n=== parseError (malformed XML) ===\n");
-    const auto& badSpans = renderer.render("<p>unclosed", 11);
-    const bool pass = badSpans.size() == 1 && badSpans[0].text && strcmp(badSpans[0].text, "unclosed") == 0;
-    printf("  spans: %zu (expected 1: partial output)\n", badSpans.size());
-    if (!badSpans.empty()) printf("  span[0]: \"%s\"\n", badSpans[0].text ? badSpans[0].text : "(null)");
-    printf("  %s\n", pass ? "PASS" : "FAIL");
-    if (pass)
-      passed++;
-    else
-      failed++;
+  const auto& bigSpans = renderer_.render(bigHtml.c_str(), static_cast<int>(bigHtml.size()));
+  ASSERT_EQ(bigSpans.size(), 100u) << "expected 100 spans";
+  for (int i = 0; i < 100; i++) {
+    EXPECT_NE(bigSpans[i].text, nullptr) << "span[" << i << "].text is null";
   }
+}
 
-  // ---------------------------------------------------------------------------
-  // B2: Large input — 100 paragraphs of 90 chars each (9000 bytes)
-  // Dynamic buffers handle all 100 paragraphs; every span must have valid text.
-  // ---------------------------------------------------------------------------
-  {
-    printf("\n=== large input (100 paragraphs) ===\n");
-    std::string bigHtml;
-    bigHtml.reserve(100 * 96);
-    for (int i = 0; i < 100; i++) {
-      bigHtml += "<p>";
-      bigHtml.append(90, 'A');
-      bigHtml += "</p>";
-    }
-    const auto& bigSpans = renderer.render(bigHtml.c_str(), static_cast<int>(bigHtml.size()));
-    bool pass = bigSpans.size() == 100;
-    for (const auto& s : bigSpans)
-      if (!s.text) {
-        pass = false;
-        break;
-      }
-    printf("  spans: %zu (expected 100)\n", bigSpans.size());
-    printf("  %s\n", pass ? "PASS" : "FAIL");
-    if (pass)
-      passed++;
-    else
-      failed++;
+// ---------------------------------------------------------------------------
+// B3: Long single paragraph — 600 chars in one <p>
+// Dynamic pendingText has no fixed limit; entire text emitted as one span.
+// ---------------------------------------------------------------------------
+TEST_F(DictHtmlRendererTest, LongParagraph_600Chars) {
+  std::string html = "<p>";
+  html.append(600, 'B');
+  html += "</p>";
+  const auto& spans = renderer_.render(html.c_str(), static_cast<int>(html.size()));
+  ASSERT_EQ(spans.size(), 1u) << "expected 1 span";
+  ASSERT_NE(spans[0].text, nullptr) << "span text is null";
+  EXPECT_EQ(strlen(spans[0].text), 600u) << "span length is 600";
+}
+
+// ---------------------------------------------------------------------------
+// B4: Deep nesting — 35 nested <i> tags (dynamic tag stack, no fixed limit)
+// ---------------------------------------------------------------------------
+TEST_F(DictHtmlRendererTest, DeepNesting_35NestedItalics) {
+  std::string html;
+  for (int i = 0; i < 35; i++) html += "<i>";
+  html += "deep text";
+  for (int i = 0; i < 35; i++) html += "</i>";
+  const auto& spans = renderer_.render(html.c_str(), static_cast<int>(html.size()));
+  ASSERT_EQ(spans.size(), 1u) << "expected 1 span";
+  ASSERT_NE(spans[0].text, nullptr) << "span text is null";
+  EXPECT_STREQ(spans[0].text, "deep text") << "text content";
+  EXPECT_TRUE(spans[0].italic) << "italic style applied";
+}
+
+// ---------------------------------------------------------------------------
+// B5: control characters in plain text — \n triggers line break, \t → space
+// Reproduces F-060/F-061: pronunciation\n<p>definition</p> must not emit ◆
+// ---------------------------------------------------------------------------
+TEST_F(DictHtmlRendererTest, ControlChars_NewlineAndTab) {
+  // \n between plain text and first <p> must produce a newline break, not a glyph
+  const char* html = "pronunciation\n<p>definition</p>";
+  const auto& spans = renderer_.render(html, static_cast<int>(strlen(html)));
+  // Expected: span[0]="pronunciation" newlineBefore=false, span[1]="definition" newlineBefore=true
+  ASSERT_EQ(spans.size(), 2u) << "expected 2 spans";
+  ASSERT_NE(spans[0].text, nullptr);
+  EXPECT_STREQ(spans[0].text, "pronunciation") << "first span text";
+  EXPECT_FALSE(spans[0].newlineBefore) << "first span: no newlineBefore";
+  ASSERT_NE(spans[1].text, nullptr);
+  EXPECT_STREQ(spans[1].text, "definition") << "second span text";
+  EXPECT_TRUE(spans[1].newlineBefore) << "second span: newlineBefore";
+}
+
+// ---------------------------------------------------------------------------
+// Group C: isIpaCodepoint unit tests
+// ---------------------------------------------------------------------------
+TEST_F(DictHtmlRendererTest, IsIpaCodepoint) {
+  struct IpaCase {
+    uint32_t cp;
+    bool expected;
+    const char* label;
+  };
+  const IpaCase cases[] = {
+      {0x024F, false, "U+024F (below IPA Extensions)"},
+      {0x0250, true, "U+0250 (IPA Extensions start)"},
+      {0x02FF, true, "U+02FF (Modifier Letters end)"},
+      {0x0300, false, "U+0300 (above Modifier Letters)"},
+      {0x1D00, true, "U+1D00 (Phonetic Extensions start)"},
+      {0x1DBF, true, "U+1DBF (Phonetic Extensions Supplement end)"},
+      {0x1DC0, false, "U+1DC0 (above Phonetic Ext Supplement)"},
+      {0x0061, false, "U+0061 (ASCII 'a')"},
+      {0x00E6, true, "U+00E6 (ae)"},
+      {0x00F0, true, "U+00F0 (eth)"},
+      {0x0153, true, "U+0153 (oe)"},
+      {0x03B2, true, "U+03B2 (beta)"},
+      {0x03B8, true, "U+03B8 (theta)"},
+      {0x00E5, false, "U+00E5 (a-ring — not IPA)"},
+      {0x03B1, false, "U+03B1 (alpha — not in the IPA subset)"},
+  };
+  for (const auto& c : cases) {
+    EXPECT_EQ(isIpaCodepoint(c.cp), c.expected) << c.label;
   }
+}
 
-  // ---------------------------------------------------------------------------
-  // B3: Long single paragraph — 600 chars in one <p>
-  // Dynamic pendingText has no fixed limit; entire text emitted as one span.
-  // ---------------------------------------------------------------------------
-  {
-    printf("\n=== long single paragraph (600 chars) ===\n");
-    std::string html = "<p>";
-    html.append(600, 'B');
-    html += "</p>";
-    const auto& spans = renderer.render(html.c_str(), static_cast<int>(html.size()));
-    const bool pass = spans.size() == 1 && spans[0].text && strlen(spans[0].text) == 600;
-    printf("  spans: %zu (expected 1)\n", spans.size());
-    if (spans.size() >= 1) printf("  span[0] len: %zu (expected 600)\n", strlen(spans[0].text));
-    printf("  %s\n", pass ? "PASS" : "FAIL");
-    if (pass)
-      passed++;
-    else
-      failed++;
-  }
+// ---------------------------------------------------------------------------
+// Group C: splitIpaRuns unit tests
+// ---------------------------------------------------------------------------
+TEST_F(DictHtmlRendererTest, SplitIpaRuns_EmptyString) {
+  std::vector<IpaTextSpan> runs;
+  splitIpaRuns("", runs);
+  EXPECT_TRUE(runs.empty()) << "empty string → 0 runs";
+}
 
-  // ---------------------------------------------------------------------------
-  // B4: Deep nesting — 35 nested <i> tags (dynamic tag stack, no fixed limit)
-  // ---------------------------------------------------------------------------
-  {
-    printf("\n=== deep nesting (35 nested <i> tags) ===\n");
-    std::string html;
-    for (int i = 0; i < 35; i++) html += "<i>";
-    html += "deep text";
-    for (int i = 0; i < 35; i++) html += "</i>";
-    const auto& spans = renderer.render(html.c_str(), static_cast<int>(html.size()));
-    const bool pass = spans.size() == 1 && spans[0].text && strcmp(spans[0].text, "deep text") == 0 && spans[0].italic;
-    printf("  spans: %zu\n", spans.size());
-    if (!spans.empty()) printSpan(0, spans[0]);
-    printf("  %s (expected 1 span, \"deep text\", italic)\n", pass ? "PASS" : "FAIL");
-    if (pass)
-      passed++;
-    else
-      failed++;
-  }
+TEST_F(DictHtmlRendererTest, SplitIpaRuns_PureAscii) {
+  std::vector<IpaTextSpan> runs;
+  splitIpaRuns("abc", runs);
+  ASSERT_EQ(runs.size(), 1u) << "pure ASCII → 1 run";
+  EXPECT_FALSE(runs[0].isIpa) << "not IPA";
+  EXPECT_EQ(runs[0].text, "abc") << "text content";
+}
 
-  // ---------------------------------------------------------------------------
-  // B5: control characters in plain text — \n triggers line break, \t → space
-  // Reproduces F-060/F-061: pronunciation\n<p>definition</p> must not emit ◆
-  // ---------------------------------------------------------------------------
-  {
-    printf("\n=== control chars in plain text (\\n, \\t) ===\n");
-    // \n between plain text and first <p> must produce a newline break, not a glyph
-    const char* html = "pronunciation\n<p>definition</p>";
-    const auto& spans = renderer.render(html, static_cast<int>(strlen(html)));
-    // Expected: span[0]="pronunciation" newlineBefore=false, span[1]="definition" newlineBefore=true
-    const bool pass = spans.size() == 2 && spans[0].text && strcmp(spans[0].text, "pronunciation") == 0 &&
-                      !spans[0].newlineBefore && spans[1].text && strcmp(spans[1].text, "definition") == 0 &&
-                      spans[1].newlineBefore;
-    printf("  spans: %zu (expected 2)\n", spans.size());
-    for (int i = 0; i < static_cast<int>(spans.size()); i++) printSpan(i, spans[i]);
-    printf("  %s\n", pass ? "PASS" : "FAIL");
-    if (pass)
-      passed++;
-    else
-      failed++;
-  }
+TEST_F(DictHtmlRendererTest, SplitIpaRuns_SingleIpaCodepoint) {
+  // U+0250 → UTF-8: 0xC9 0x90
+  std::string ipa;
+  ipa += '\xC9';
+  ipa += '\x90';
+  std::vector<IpaTextSpan> runs;
+  splitIpaRuns(ipa.c_str(), runs);
+  ASSERT_EQ(runs.size(), 1u) << "single IPA codepoint → 1 run";
+  EXPECT_TRUE(runs[0].isIpa) << "is IPA";
+  EXPECT_EQ(runs[0].text, ipa) << "text content";
+}
 
-  // ---------------------------------------------------------------------------
-  // Group C: isIpaCodepoint unit tests
-  // ---------------------------------------------------------------------------
-  {
-    printf("\n=== isIpaCodepoint ===\n");
-    struct IpaCase {
-      uint32_t cp;
-      bool expected;
-      const char* label;
-    };
-    const IpaCase cases[] = {
-        {0x024F, false, "U+024F (below IPA Extensions)"},
-        {0x0250, true, "U+0250 (IPA Extensions start)"},
-        {0x02FF, true, "U+02FF (Modifier Letters end)"},
-        {0x0300, false, "U+0300 (above Modifier Letters)"},
-        {0x1D00, true, "U+1D00 (Phonetic Extensions start)"},
-        {0x1DBF, true, "U+1DBF (Phonetic Extensions Supplement end)"},
-        {0x1DC0, false, "U+1DC0 (above Phonetic Ext Supplement)"},
-        {0x0061, false, "U+0061 (ASCII 'a')"},
-        // Individual IPA letters outside the block ranges (added by the IPA merge).
-        {0x00E6, true, "U+00E6 (ae)"},
-        {0x00F0, true, "U+00F0 (eth)"},
-        {0x0153, true, "U+0153 (oe)"},
-        {0x03B2, true, "U+03B2 (beta)"},
-        {0x03B8, true, "U+03B8 (theta)"},
-        {0x00E5, false, "U+00E5 (a-ring — not IPA)"},
-        {0x03B1, false, "U+03B1 (alpha — not in the IPA subset)"},
-    };
-    bool allPass = true;
-    for (const auto& c : cases) {
-      const bool got = isIpaCodepoint(c.cp);
-      const bool ok = (got == c.expected);
-      printf("  %s: %s%s\n", c.label, got ? "true" : "false", ok ? "" : " FAIL");
-      if (!ok) allPass = false;
-    }
-    printf("  %s\n", allPass ? "PASS" : "FAIL");
-    if (allPass)
-      passed++;
-    else
-      failed++;
-  }
+TEST_F(DictHtmlRendererTest, SplitIpaRuns_Mixed_AsciiIpaAscii) {
+  // "abc" + U+0250 + "xyz" → 3 runs
+  std::string mixed = "abc";
+  mixed += '\xC9';
+  mixed += '\x90';
+  mixed += "xyz";
+  std::vector<IpaTextSpan> runs;
+  splitIpaRuns(mixed.c_str(), runs);
+  ASSERT_EQ(runs.size(), 3u) << "mixed → 3 runs";
+  EXPECT_FALSE(runs[0].isIpa) << "run 0: not IPA";
+  EXPECT_EQ(runs[0].text, "abc") << "run 0 text";
+  EXPECT_TRUE(runs[1].isIpa) << "run 1: IPA";
+  EXPECT_FALSE(runs[2].isIpa) << "run 2: not IPA";
+  EXPECT_EQ(runs[2].text, "xyz") << "run 2 text";
+}
 
-  // ---------------------------------------------------------------------------
-  // Group C: splitIpaRuns unit tests
-  // ---------------------------------------------------------------------------
-  {
-    printf("\n=== splitIpaRuns ===\n");
-    bool allPass = true;
+TEST_F(DictHtmlRendererTest, SplitIpaRuns_ConsecutiveIpa) {
+  // "ab" + U+0250 + U+0251 + "cd" → 3 runs, IPA run has 4 bytes
+  std::string s = "ab";
+  s += '\xC9';
+  s += '\x90';  // U+0250
+  s += '\xC9';
+  s += '\x91';  // U+0251
+  s += "cd";
+  std::vector<IpaTextSpan> runs;
+  splitIpaRuns(s.c_str(), runs);
+  ASSERT_EQ(runs.size(), 3u) << "consecutive IPA → 3 runs";
+  EXPECT_FALSE(runs[0].isIpa);
+  EXPECT_EQ(runs[0].text, "ab");
+  EXPECT_TRUE(runs[1].isIpa);
+  EXPECT_EQ(runs[1].text.size(), 4u) << "IPA run: 4 bytes (two 2-byte codepoints)";
+  EXPECT_FALSE(runs[2].isIpa);
+  EXPECT_EQ(runs[2].text, "cd");
+}
 
-    // Empty string → 0 runs
-    {
-      std::vector<IpaTextSpan> runs;
-      splitIpaRuns("", runs);
-      const bool ok = runs.empty();
-      printf("  empty string → %zu runs (expected 0)%s\n", runs.size(), ok ? "" : " FAIL");
-      if (!ok) allPass = false;
-    }
-
-    // Pure ASCII → 1 non-IPA run
-    {
-      std::vector<IpaTextSpan> runs;
-      splitIpaRuns("abc", runs);
-      const bool ok = runs.size() == 1 && !runs[0].isIpa && runs[0].text == "abc";
-      printf("  \"abc\" → %zu run(s), isIpa=%d (expected 1, false)%s\n", runs.size(),
-             runs.empty() ? -1 : (int)runs[0].isIpa, ok ? "" : " FAIL");
-      if (!ok) allPass = false;
-    }
-
-    // Single IPA codepoint U+0250 (UTF-8: 0xC9 0x90)
-    {
-      std::string ipa;
-      ipa += '\xC9';
-      ipa += '\x90';
-      std::vector<IpaTextSpan> runs;
-      splitIpaRuns(ipa.c_str(), runs);
-      const bool ok = runs.size() == 1 && runs[0].isIpa && runs[0].text == ipa;
-      printf("  U+0250 → %zu run(s), isIpa=%d (expected 1, true)%s\n", runs.size(),
-             runs.empty() ? -1 : (int)runs[0].isIpa, ok ? "" : " FAIL");
-      if (!ok) allPass = false;
-    }
-
-    // Mixed: "abc" + U+0250 + "xyz" → 3 runs
-    {
-      std::string mixed = "abc";
-      mixed += '\xC9';
-      mixed += '\x90';
-      mixed += "xyz";
-      std::vector<IpaTextSpan> runs;
-      splitIpaRuns(mixed.c_str(), runs);
-      const bool ok = runs.size() == 3 && !runs[0].isIpa && runs[0].text == "abc" && runs[1].isIpa && !runs[2].isIpa &&
-                      runs[2].text == "xyz";
-      printf("  \"abc\"+U+0250+\"xyz\" → %zu run(s) (expected 3)%s\n", runs.size(), ok ? "" : " FAIL");
-      if (!ok) allPass = false;
-    }
-
-    // Consecutive IPA → 1 IPA run: "ab" + U+0250 + U+0251 + "cd" → 3 runs
-    {
-      std::string s = "ab";
-      s += '\xC9';
-      s += '\x90';  // U+0250
-      s += '\xC9';
-      s += '\x91';  // U+0251
-      s += "cd";
-      std::vector<IpaTextSpan> runs;
-      splitIpaRuns(s.c_str(), runs);
-      const bool ok = runs.size() == 3 && !runs[0].isIpa && runs[0].text == "ab" && runs[1].isIpa &&
-                      runs[1].text.size() == 4 && !runs[2].isIpa && runs[2].text == "cd";
-      printf("  \"ab\"+U+0250+U+0251+\"cd\" → %zu run(s) (expected 3, IPA run len 4)%s\n", runs.size(),
-             ok ? "" : " FAIL");
-      if (!ok) allPass = false;
-    }
-
-    // Combining mark attaches to the current run (IPA-merge behavior):
-    // U+0250 (IPA) + U+0301 (combining acute) → one IPA run of 4 bytes.
-    {
-      std::string s;
-      s += '\xC9';
-      s += '\x90';  // U+0250 (IPA)
-      s += '\xCC';
-      s += '\x81';  // U+0301 (combining acute)
-      std::vector<IpaTextSpan> runs;
-      splitIpaRuns(s.c_str(), runs);
-      const bool ok = runs.size() == 1 && runs[0].isIpa && runs[0].text.size() == 4;
-      printf("  U+0250+U+0301(combining) → %zu run(s), isIpa=%d (expected 1, true)%s\n", runs.size(),
-             runs.empty() ? -1 : (int)runs[0].isIpa, ok ? "" : " FAIL");
-      if (!ok) allPass = false;
-    }
-
-    printf("  %s\n", allPass ? "PASS" : "FAIL");
-    if (allPass)
-      passed++;
-    else
-      failed++;
-  }
-
-  printf("\n--- Results: %d passed, %d failed", passed, failed);
-  if (unknownTagErrors > 0) printf(", %d unexpected unknown tag(s)", unknownTagErrors);
-  printf(" ---\n");
-
-  return (failed > 0 || unknownTagErrors > 0) ? 1 : 0;
+TEST_F(DictHtmlRendererTest, SplitIpaRuns_CombiningMarkAttachesToIpaRun) {
+  // U+0250 (IPA) + U+0301 (combining acute) → one IPA run of 4 bytes.
+  std::string s;
+  s += '\xC9';
+  s += '\x90';  // U+0250
+  s += '\xCC';
+  s += '\x81';  // U+0301 combining acute
+  std::vector<IpaTextSpan> runs;
+  splitIpaRuns(s.c_str(), runs);
+  ASSERT_EQ(runs.size(), 1u) << "IPA + combining mark → 1 run";
+  EXPECT_TRUE(runs[0].isIpa) << "is IPA";
+  EXPECT_EQ(runs[0].text.size(), 4u) << "4 bytes total";
 }
