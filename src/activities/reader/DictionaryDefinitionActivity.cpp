@@ -391,7 +391,14 @@ void DictionaryDefinitionActivity::loop() {
     if (controller.handleMultiSelect(navigator)) return;
 
     if (!navigator.isMultiSelecting()) {
-      if (shortLookupPressed || controller.handleConfirmLookup(navigator)) return;
+      if (shortLookupPressed) {
+        isWordSelectMode = false;
+        navigator.reset();
+        requestUpdate();
+        return;
+      }
+
+      if (controller.handleConfirmLookup(navigator)) return;
 
       if (handleLongPressExitAll(true)) return;
 

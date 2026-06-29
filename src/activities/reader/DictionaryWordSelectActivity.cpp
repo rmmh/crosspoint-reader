@@ -336,7 +336,12 @@ void DictionaryWordSelectActivity::loop() {
 
   if (navigator.isMultiSelecting()) return;
 
-  if (shortLookupPressed || controller.handleConfirmLookup(navigator)) return;
+  if (shortLookupPressed) {
+    DictUtils::cancelAndFinish(*this);
+    return;
+  }
+
+  if (controller.handleConfirmLookup(navigator)) return;
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     DictUtils::cancelAndFinish(*this);
