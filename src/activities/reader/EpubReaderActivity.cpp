@@ -426,6 +426,21 @@ void EpubReaderActivity::loop() {
     return;
   }
 
+  if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::LOOKUP &&
+      mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      !mappedInput.wasReleased(MappedInputManager::Button::Down)) {
+    if (Dictionary::exists(epub->getCachePath().c_str())) {
+      openWordSelect(/*framebufferContainsPage=*/true);
+      return;
+    }
+    if (!showNoDictionaryMessage) {
+      showNoDictionaryMessage = true;
+      noDictionaryMessageTime = millis();
+      requestUpdate();
+    }
+    return;
+  }
+
   const auto [prevTriggered, nextTriggered, fromTilt] = ReaderUtils::detectPageTurn(mappedInput);
   if (!prevTriggered && !nextTriggered) {
     return;
