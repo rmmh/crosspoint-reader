@@ -496,10 +496,19 @@ def _make_def_long_prep(n: int, word_prefix: str, word_count: int = 0) -> bytes:
     return " ".join(parts).encode("utf-8")
 
 
+def _make_def_fuzzy(n: int, word_prefix: str, word_count: int = 0) -> bytes:
+    """Tiny definition for fuzzy_word dicts. Keeps the committed fixture small
+    while still producing thousands of headwords (many .idx.oft pages) so the
+    OFT binary search in Dictionary::findSimilar is exercised on a window that
+    starts well past offset 0."""
+    return f"def {n:05d}".encode("ascii")
+
+
 _DEFINITION_FN = {
     "all_prep_word": _make_def_all_prep,
     "long_prep_word": _make_def_long_prep,
     "chain_stress": _make_def_chain_stress,
+    "fuzzy_word": _make_def_fuzzy,
 }
 
 

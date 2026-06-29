@@ -1,0 +1,20 @@
+{
+  "_comment": "Small committed fixture with a real .idx.oft spanning many pages (1500 headwords / STRIDE 32 = ~47 OFT entries). Used by DictEngineTest to exercise the OFT page-boundary binary search in Dictionary::findSimilar for target words far past offset 0. Tiny definitions keep the generated dict well under ~30 KB.",
+  "meta": {
+    "name": "fuzzy-oft",
+    "bookname": "Fuzzy OFT Test",
+    "output_dir": "test/dictionaries/fuzzy-oft",
+    "author": "CrossPoint Test Suite",
+    "description": "Multi-page synthetic dictionary for fuzzy-search OFT binary-search tests.",
+    "entry_format": "m",
+    "compress": false,
+    "generate_oft": true,
+    "ifo_version": "stardict-2.4.2"
+  },
+  "synthetic": {
+    "word_prefix": "fuzzy_word",
+    "syn_prefix": "fuzzy_syn",
+    "word_count": 1500,
+    "synonyms_per_word": 0
+  }
+}

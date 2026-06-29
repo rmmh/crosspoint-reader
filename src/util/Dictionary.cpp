@@ -861,25 +861,32 @@ std::vector<std::string> Dictionary::findSimilar(const std::string& word, int ma
   const uint32_t scanEnd = std::min(idxFileSize, centerEnd + PAGE_RADIUS * pageSize);
 
   if (hasOft) {
-    // Snap scanStart back to the true page boundary containing it via binary search.
-    // Re-use findPageBounds with the first word of the scan region as target would be complex;
-    // instead just clamp to a page-aligned position by seeking to the OFT entry.
-    // For simplicity, snap to the nearest OFT page boundary at or before scanStart.
+    // Snap scanStart back to the page boundary containing it. OFT entries are
+    // monotonically increasing byte offsets, so binary-search for the largest
+    // entry <= scanStart instead of walking (and seeking) every entry.
     const uint32_t oftFileSize = static_cast<uint32_t>(oft.fileSize());
     const uint32_t numEntries = (oftFileSize > OFT_HEADER_SIZE) ? (oftFileSize - OFT_HEADER_SIZE) / 4 : 0;
 
-    // Walk backward through OFT entries to find the largest entry <= scanStart
-    uint32_t snappedStart = 0;
-    for (uint32_t i = 0; i < numEntries; i++) {
+    auto readEntry = [&oft](uint32_t i) -> uint32_t {
       oft.seekSet(OFT_HEADER_SIZE + i * 4);
       uint8_t raw[4];
-      if (oft.read(raw, 4) != 4) break;
+      if (oft.read(raw, 4) != 4) return 0;
       uint32_t entryVal;
       memcpy(&entryVal, raw, 4);
+      return entryVal;
+    };
+
+    uint32_t snappedStart = 0;
+    uint32_t lo = 0;
+    uint32_t hi = numEntries;  // search [lo, hi)
+    while (lo < hi) {
+      const uint32_t mid = lo + (hi - lo) / 2;
+      const uint32_t entryVal = readEntry(mid);
       if (entryVal <= scanStart) {
         snappedStart = entryVal;
+        lo = mid + 1;
       } else {
-        break;  // OFT entries are monotonically increasing
+        hi = mid;
       }
     }
     oft.close();
