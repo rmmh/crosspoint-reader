@@ -330,6 +330,11 @@ bool DictionaryDefinitionActivity::handleLongPressExitAll(bool enabled) {
 }
 
 void DictionaryDefinitionActivity::loop() {
+  const bool shortLookupPressed =
+      ReaderUtils::shortPowerButtonActionTriggered(mappedInput, CrossPointSettings::SHORT_PWRBTN::LOOKUP);
+  const bool shortPageTurnPressed =
+      ReaderUtils::shortPowerButtonActionTriggered(mappedInput, CrossPointSettings::SHORT_PWRBTN::PAGE_TURN);
+
   // --- Controller active (LookingUp / AltFormPrompt / NotFound) ---
   if (controller.isActive()) {
     switch (controller.handleInput()) {
@@ -386,7 +391,7 @@ void DictionaryDefinitionActivity::loop() {
     if (controller.handleMultiSelect(navigator)) return;
 
     if (!navigator.isMultiSelecting()) {
-      if (controller.handleConfirmLookup(navigator)) return;
+      if (shortLookupPressed || controller.handleConfirmLookup(navigator)) return;
 
       if (handleLongPressExitAll(true)) return;
 
@@ -404,8 +409,19 @@ void DictionaryDefinitionActivity::loop() {
   // --- View mode ---
   const bool prevPage = mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
                         mappedInput.wasReleased(MappedInputManager::Button::Left);
-  const bool nextPage = mappedInput.wasReleased(MappedInputManager::Button::PageForward) ||
+  const bool nextPage = shortPageTurnPressed || mappedInput.wasReleased(MappedInputManager::Button::PageForward) ||
                         mappedInput.wasReleased(MappedInputManager::Button::Right);
+  const bool longPressPageNav =
+      mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS && (prevPage || nextPage) && !shortPageTurnPressed;
+
+  if (longPressPageNav && SETTINGS.longPressButtonBehavior == SETTINGS.ORIENTATION_CHANGE) {
+    SETTINGS.orientation = ReaderUtils::rotatedOrientationForNavigation(nextPage);
+    SETTINGS.saveToFile();
+    ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+    wrapText();
+    requestUpdate();
+    return;
+  }
 
   if (prevPage && currentPage > 0) {
     currentPage--;
@@ -419,7 +435,7 @@ void DictionaryDefinitionActivity::loop() {
     requestUpdate();
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+  if (shortLookupPressed || mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (showLookupButton) {
       extractWordsFromLayout();
       if (!navigator.isEmpty()) {

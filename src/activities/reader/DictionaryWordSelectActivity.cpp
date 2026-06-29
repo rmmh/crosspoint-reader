@@ -12,6 +12,7 @@
 #include "CrossPointSettings.h"
 #include "DictionaryDefinitionActivity.h"
 #include "MappedInputManager.h"
+#include "ReaderUtils.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/Dictionary.h"
@@ -274,6 +275,9 @@ void DictionaryWordSelectActivity::mergeHyphenatedWords(std::vector<WordSelectNa
 }
 
 void DictionaryWordSelectActivity::loop() {
+  const bool shortLookupPressed =
+      ReaderUtils::shortPowerButtonActionTriggered(mappedInput, CrossPointSettings::SHORT_PWRBTN::LOOKUP);
+
   if (controller.isActive()) {
     switch (controller.handleInput()) {
       case DictionaryLookupController::LookupEvent::FoundDefinition: {
@@ -332,7 +336,7 @@ void DictionaryWordSelectActivity::loop() {
 
   if (navigator.isMultiSelecting()) return;
 
-  if (controller.handleConfirmLookup(navigator)) return;
+  if (shortLookupPressed || controller.handleConfirmLookup(navigator)) return;
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     DictUtils::cancelAndFinish(*this);

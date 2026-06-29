@@ -403,9 +403,7 @@ void EpubReaderActivity::loop() {
   // auto [prevTriggered, nextTriggered] = ReaderUtils::detectPageTurn(mappedInput);
 
   // Handle short power button press for footnotes
-  if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::FOOTNOTES &&
-      mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      !mappedInput.wasReleased(MappedInputManager::Button::Down)) {
+  if (ReaderUtils::shortPowerButtonActionTriggered(mappedInput, CrossPointSettings::SHORT_PWRBTN::FOOTNOTES)) {
     if (footnoteDepth > 0) {
       restoreSavedPosition();
     } else {
@@ -426,9 +424,7 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::LOOKUP &&
-      mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      !mappedInput.wasReleased(MappedInputManager::Button::Down)) {
+  if (ReaderUtils::shortPowerButtonActionTriggered(mappedInput, CrossPointSettings::SHORT_PWRBTN::LOOKUP)) {
     if (Dictionary::exists(epub->getCachePath().c_str())) {
       openWordSelect(/*framebufferContainsPage=*/true);
       return;
@@ -489,9 +485,7 @@ void EpubReaderActivity::loop() {
   }
 
   if (longPress && SETTINGS.longPressButtonBehavior == SETTINGS.ORIENTATION_CHANGE) {
-    const uint8_t newOrientation =
-        nextTriggered ? (SETTINGS.orientation - 1 + SETTINGS.ORIENTATION_COUNT) % SETTINGS.ORIENTATION_COUNT
-                      : (SETTINGS.orientation + 1) % SETTINGS.ORIENTATION_COUNT;
+    const uint8_t newOrientation = ReaderUtils::rotatedOrientationForNavigation(nextTriggered);
     applyOrientation(newOrientation);
     requestUpdate();
     return;

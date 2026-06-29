@@ -60,6 +60,17 @@ inline PageTurnResult detectPageTurn(const MappedInputManager& input) {
   return {prev, next, tiltPrev || tiltNext};
 }
 
+inline bool shortPowerButtonActionTriggered(const MappedInputManager& input,
+                                            CrossPointSettings::SHORT_PWRBTN action) {
+  return SETTINGS.shortPwrBtn == action && input.wasReleased(MappedInputManager::Button::Power) &&
+         !input.wasReleased(MappedInputManager::Button::Down);
+}
+
+inline uint8_t rotatedOrientationForNavigation(bool nextTriggered) {
+  return nextTriggered ? (SETTINGS.orientation - 1 + SETTINGS.ORIENTATION_COUNT) % SETTINGS.ORIENTATION_COUNT
+                       : (SETTINGS.orientation + 1) % SETTINGS.ORIENTATION_COUNT;
+}
+
 inline void displayWithRefreshCycle(const GfxRenderer& renderer, int& pagesUntilFullRefresh) {
   if (pagesUntilFullRefresh <= 1) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
