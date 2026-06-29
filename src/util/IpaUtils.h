@@ -5,18 +5,19 @@
 #include <string>
 #include <vector>
 
-/// Returns true if the Unicode codepoint falls within an IPA phonetic range.
+/// Returns true if the Unicode codepoint falls within an IPA phonetic range, or
+/// is a fallback symbol / math operator/ Greek character for dictionary definitions.
 /// Ranges covered:
-///   U+0250–U+02AF  IPA Extensions
-///   U+02B0–U+02FF  Modifier Letters (IPA subset)
-///   U+1D00–U+1D7F  Phonetic Extensions
-///   U+1D80–U+1DBF  Phonetic Extensions Supplement
-/// Additional IPA characters outside those blocks:
-///   U+00E6, U+00F0, U+00F8, U+0127, U+014B, U+0153, U+03B2, U+03B8, U+03C7
+///   U+0220–U+02FF  Latin Extended-B / IPA Extensions / Spacing Modifier Letters
+///   U+1D00–U+1DBF  Phonetic Extensions / Supplement
+///   U+0370–U+03FF  Greek and Coptic (Fallback for etymology / definitions)
+///   U+1E00–U+1FFF  Latin Extended Additional / Greek Extended (Fallback)
 /// Combining marks used in IPA are attached to the previous run by splitIpaRuns().
 static inline bool isIpaCodepoint(uint32_t cp) {
-  return cp == 0x00E6 || cp == 0x00F0 || cp == 0x00F8 || cp == 0x0127 || cp == 0x014B || cp == 0x0153 || cp == 0x03B2 ||
-         cp == 0x03B8 || cp == 0x03C7 || (cp >= 0x0250 && cp <= 0x02FF) || (cp >= 0x1D00 && cp <= 0x1DBF);
+  if (cp < 0x0220) return false;
+  return (cp >= 0x0220 && cp <= 0x02FF) || (cp >= 0x1D00 && cp <= 0x1DBF) ||
+         cp == 0x221A || cp == 0x2192 || cp == 0x261E || (cp >= 0x2153 && cp <= 0x2154) || (cp >= 0x266D && cp <= 0x266F) ||
+         (cp >= 0x0370 && cp <= 0x03FF) || (cp >= 0x1E00 && cp <= 0x1FFF);
 }
 
 struct IpaTextSpan {

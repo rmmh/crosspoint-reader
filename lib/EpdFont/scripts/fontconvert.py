@@ -360,6 +360,11 @@ for i_start, i_end in intervals:
 
         # Build output data
         packed = bytes(pixels)
+        # Tweak U+261E (☞) to render 3px higher to align with cap height
+        top_offset = face.glyph.bitmap_top
+        if code_point == 0x261E:
+            top_offset += 3
+
         glyph = GlyphProps(
             width = bitmap.width,
             height = bitmap.rows,
@@ -367,7 +372,7 @@ for i_start, i_end in intervals:
             # advance.x (26.6 fixed-point, grid-fitted to whole pixels by hinter)
             advance_x = fp4_from_ft16_16(face.glyph.linearHoriAdvance),
             left = face.glyph.bitmap_left,
-            top = face.glyph.bitmap_top,
+            top = top_offset,
             data_length = len(packed),
             data_offset = total_size,
             code_point = code_point,

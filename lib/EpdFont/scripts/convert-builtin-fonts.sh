@@ -55,38 +55,51 @@ python fontconvert.py notosans_8_regular 8 \
 
 # IPA font — Doulos SIL Regular, 16pt, IPA codepoints only
 IPA_SOURCE="../builtinFonts/source/DoulosSIL/DoulosSIL-Regular.ttf"
-IPA_STRIPPED="/tmp/doulos_sil_ipa_stripped.ttf"
-IPA_UNICODES="U+00E6,U+00F0,U+00F8,U+0127,U+014B,U+0153,U+03B2,U+03B8,U+03C7,U+0250-02AF,U+02B0-02FF,U+0300-036F,U+1D00-1D7F,U+1D80-1DBF,U+1DC0-1DFF,U+20D0-20FF"
+NOTOSERIF_SOURCE="../builtinFonts/source/NotoSerif/NotoSerif-Regular.ttf"
 
-pyftsubset "$IPA_SOURCE" \
-  --unicodes="$IPA_UNICODES" \
-  --output-file="$IPA_STRIPPED" \
-  --no-layout-closure \
-  --drop-tables+=GSUB,GPOS,GDEF,Silt
+# Symbols font — Noto Sans Symbols 2 Regular (downloaded from releases if missing)
+SYMBOLS_DIR="../builtinFonts/source/NotoSansSymbols2"
+SYMBOLS_SOURCE="${SYMBOLS_DIR}/NotoSansSymbols2-Regular.ttf"
 
-python fontconvert.py ipa_16_regular 16 "$IPA_STRIPPED" \
+if [ ! -f "$SYMBOLS_SOURCE" ]; then
+  echo "Downloading NotoSansSymbols2-Regular.ttf from releases..."
+  mkdir -p "$SYMBOLS_DIR"
+  TEMP_ZIP="/tmp/NotoSansSymbols2.zip"
+  TEMP_DIR="/tmp/NotoSansSymbols2_extract"
+  
+  curl -L -o "$TEMP_ZIP" "https://github.com/notofonts/symbols/releases/download/NotoSansSymbols2-v2.008/NotoSansSymbols2-v2.008.zip"
+  mkdir -p "$TEMP_DIR"
+  unzip -q -o "$TEMP_ZIP" -d "$TEMP_DIR"
+  
+  FOUND_TTF=$(find "$TEMP_DIR" -name "NotoSansSymbols2-Regular.ttf" | head -n 1)
+  if [ -n "$FOUND_TTF" ]; then
+    cp "$FOUND_TTF" "$SYMBOLS_SOURCE"
+    echo "Installed NotoSansSymbols2-Regular.ttf successfully."
+  else
+    echo "Error: NotoSansSymbols2-Regular.ttf not found in the release archive"
+    exit 1
+  fi
+  rm -rf "$TEMP_ZIP" "$TEMP_DIR"
+fi
+
+python fontconvert.py ipa_16_regular 16 "$IPA_SOURCE" "$SYMBOLS_SOURCE" "$NOTOSERIF_SOURCE" \
   --2bit --compress \
   --no-default-intervals \
-  --additional-intervals 0x0250,0x02AF \
-  --additional-intervals 0x02B0,0x02FF \
+  --additional-intervals 0x0220,0x02FF \
   --additional-intervals 0x0300,0x036F \
-  --additional-intervals 0x1D00,0x1D7F \
-  --additional-intervals 0x1D80,0x1DBF \
+  --additional-intervals 0x0370,0x03FF \
+  --additional-intervals 0x1D00,0x1DBF \
   --additional-intervals 0x1DC0,0x1DFF \
+  --additional-intervals 0x1E00,0x1FFF \
   --additional-intervals 0x20D0,0x20FF \
-  --additional-intervals 0x00E6,0x00E6 \
-  --additional-intervals 0x00F0,0x00F0 \
-  --additional-intervals 0x00F8,0x00F8 \
-  --additional-intervals 0x0127,0x0127 \
-  --additional-intervals 0x014B,0x014B \
-  --additional-intervals 0x0153,0x0153 \
-  --additional-intervals 0x03B2,0x03B2 \
-  --additional-intervals 0x03B8,0x03B8 \
-  --additional-intervals 0x03C7,0x03C7 \
+  --additional-intervals 0x2153,0x2154 \
+  --additional-intervals 0x2192,0x2192 \
+  --additional-intervals 0x221A,0x221A \
+  --additional-intervals 0x266D,0x266F \
+  --additional-intervals 0x261E,0x261E \
   > ../builtinFonts/ipa_16_regular.h
 
 echo "Generated ipa_16_regular.h"
-rm -f "$IPA_STRIPPED"
 
 echo ""
 echo "Running compression verification..."
