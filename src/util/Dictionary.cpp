@@ -1,13 +1,14 @@
 #include "Dictionary.h"
 
-#include "TextPool.h"
-
 #include <HalStorage.h>
 #include <Logging.h>
 
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+
+#include "StringUtils.h"
+#include "TextPool.h"
 
 // Static member definitions
 char Dictionary::wordBuf[256] = "";
@@ -293,20 +294,6 @@ int Dictionary::readWordInto(HalFile& file, char* buf, size_t bufSize) {
 // OFT binary search helper
 // ---------------------------------------------------------------------------
 
-// Case-insensitive strcmp for ASCII — used in findPageBounds() because StarDict
-// dictionaries (including wiktionary-derived ones) are sorted case-insensitively.
-// Using plain strcmp would cause the binary search to land on the wrong page for
-// any word whose alphabetic neighbourhood contains mixed-case page boundaries.
-static int cistrcmp(const char* a, const char* b) {
-  while (*a && *b) {
-    int diff = std::tolower(static_cast<unsigned char>(*a)) - std::tolower(static_cast<unsigned char>(*b));
-    if (diff != 0) return diff;
-    a++;
-    b++;
-  }
-  return std::tolower(static_cast<unsigned char>(*a)) - std::tolower(static_cast<unsigned char>(*b));
-}
-
 // CLEANUP: on Auto-only commit, delete only this line (readCsptEntryCount below stays)
 uint32_t Dictionary::readCsptEntryCount(const char* cachePath) {
   std::string folderPath = readDictPath(cachePath);
@@ -355,9 +342,9 @@ bool Dictionary::binarySearchCspt(HalFile& cspt, const char* target, uint32_t id
     cspt.seekSet(CSPT_HEADER_SIZE + mid * entrySize);
     if (cspt.read(entry, entrySize) != static_cast<int>(entrySize)) return false;
 
-    // Null-terminate prefix for cistrcmp (prefix is already null-padded if shorter).
+    // Null-terminate prefix for asciiCaseCmp (prefix is already null-padded if shorter).
     entry[prefixLen] = '\0';
-    if (cistrcmp(reinterpret_cast<const char*>(entry), target) > 0) {
+    if (StringUtils::asciiCaseCmp(reinterpret_cast<const char*>(entry), target) > 0) {
       hi = mid - 1;
     } else {
       lo = mid;
@@ -434,7 +421,7 @@ void Dictionary::findPageBounds(HalFile& oft, HalFile& src, uint32_t srcFileSize
     uint32_t midStart = pageStart(mid);
     src.seekSet(midStart);
     int len = readWordInto(src, wordBuf, sizeof(wordBuf));
-    if (len < 0 || cistrcmp(wordBuf, target) > 0) {
+    if (len < 0 || StringUtils::asciiCaseCmp(wordBuf, target) > 0) {
       hi = mid - 1;
     } else {
       lo = mid;
@@ -499,7 +486,7 @@ DictLocation Dictionary::locate(const std::string& word, const DictLookupCallbac
     uint8_t suffix[8];
     if (idx.read(suffix, 8) != 8) break;
 
-    int cmp = cistrcmp(wordBuf, word.c_str());
+    int cmp = StringUtils::asciiCaseCmp(wordBuf, word.c_str());
     if (cmp == 0) {
       result.offset = (static_cast<uint32_t>(suffix[0]) << 24) | (static_cast<uint32_t>(suffix[1]) << 16) |
                       (static_cast<uint32_t>(suffix[2]) << 8) | static_cast<uint32_t>(suffix[3]);
@@ -599,7 +586,7 @@ std::string Dictionary::resolveAltForm(const std::string& word, const char* cach
     uint8_t idxBuf[4];
     if (syn.read(idxBuf, 4) != 4) break;
 
-    int cmp = cistrcmp(wordBuf, word.c_str());
+    int cmp = StringUtils::asciiCaseCmp(wordBuf, word.c_str());
     if (cmp == 0) {
       // Big-endian original word index in .idx
       uint32_t originalIdx = (static_cast<uint32_t>(idxBuf[0]) << 24) | (static_cast<uint32_t>(idxBuf[1]) << 16) |
@@ -917,7 +904,7 @@ std::vector<std::string> Dictionary::findSimilar(const std::string& word, int ma
     if (idx.read(skip, 8) != 8) break;
 
     if (len == 0) continue;
-    if (cistrcmp(wordBuf, word.c_str()) == 0) continue;
+    if (StringUtils::asciiCaseCmp(wordBuf, word.c_str()) == 0) continue;
 
     int dist = editDistance(wordBuf, word, maxDist);
     if (dist <= maxDist) {

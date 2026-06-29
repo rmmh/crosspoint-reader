@@ -4,8 +4,9 @@
 #include <Logging.h>
 
 #include <algorithm>
-#include <cctype>
 #include <cstring>
+
+#include "StringUtils.h"
 
 // Candidate SD card root directories for dictionaries, checked in priority order.
 // The first directory found on the SD card is used; the rest are ignored.
@@ -115,16 +116,7 @@ bool DictionaryRegistry::discover() {
 
   // Sort alphabetically by folder name (case-insensitive — matches FileBrowserActivity).
   std::sort(entries_.begin(), entries_.end(), [](const DictionaryEntry& a, const DictionaryEntry& b) {
-    const char* s1 = a.name.c_str();
-    const char* s2 = b.name.c_str();
-    while (*s1 && *s2) {
-      char c1 = static_cast<char>(tolower(static_cast<unsigned char>(*s1)));
-      char c2 = static_cast<char>(tolower(static_cast<unsigned char>(*s2)));
-      if (c1 != c2) return c1 < c2;
-      s1++;
-      s2++;
-    }
-    return *s1 == '\0' && *s2 != '\0';
+    return StringUtils::asciiCaseCmp(a.name.c_str(), b.name.c_str()) < 0;
   });
 
   return !entries_.empty();
