@@ -132,12 +132,8 @@ void DictionaryDefinitionActivity::collectLineSink(void* ctx, DictLayout::Layout
 
 int DictionaryDefinitionActivity::getMixedWidth(std::vector<IpaTextSpan>& ipaRuns, const char* text,
                                                 EpdFontFamily::Style style) {
-  ipaRuns.clear();
-  splitIpaRuns(text, ipaRuns);
-  return std::accumulate(ipaRuns.begin(), ipaRuns.end(), 0, [&](int sum, const IpaTextSpan& run) {
-    return sum +
-           renderer.getTextWidth(run.isIpa ? IPA_FONT_ID : SETTINGS.getDefinitionFontId(), run.text.c_str(), style);
-  });
+  DictLayout::Measurer meas{this, &DictionaryDefinitionActivity::measureWidthAdapter};
+  return DictLayout::getMixedWidth(ipaRuns, text, style, meas);
 }
 
 // ---------------------------------------------------------------------------

@@ -71,7 +71,6 @@ class Wrapper {
   void finish();                        // flush the trailing in-progress line
 
  private:
-  int getMixedWidth(const char* text, EpdFontFamily::Style style);
   void flushLine();
   void startLine(uint8_t indent, bool listItem);
   void appendToLine(const std::string& text, EpdFontFamily::Style style, bool isIpa, int width);
@@ -87,6 +86,11 @@ class Wrapper {
   int currentX_ = 0;
   std::vector<IpaTextSpan> ipaRuns_;  // reused scratch for IPA run splitting
 };
+
+// Measure the width of a string, accounting for mixed IPA/non-IPA runs.
+// Reuses the provided scratchRuns vector to prevent heap allocation overhead.
+int getMixedWidth(std::vector<IpaTextSpan>& scratchRuns, const char* text, EpdFontFamily::Style style,
+                  const Measurer& measure);
 
 // Streaming layout: word-wrap every span and emit each completed line to `sink`
 // as soon as it is finished. Lets the caller hold only a subset of lines (one

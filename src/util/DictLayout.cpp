@@ -19,13 +19,12 @@ Wrapper::Wrapper(const WrapMetrics& metrics, const Measurer& measure, const Line
   startLine(0, false);
 }
 
-// Width of a string, accounting for mixed IPA/non-IPA runs (each run measured
-// with the appropriate font via the injected measurer).
-int Wrapper::getMixedWidth(const char* text, EpdFontFamily::Style style) {
-  ipaRuns_.clear();
-  splitIpaRuns(text, ipaRuns_);
-  return std::accumulate(ipaRuns_.begin(), ipaRuns_.end(), 0, [&](int sum, const IpaTextSpan& run) {
-    return sum + measure_(run.text.c_str(), style, run.isIpa);
+int getMixedWidth(std::vector<IpaTextSpan>& scratchRuns, const char* text, EpdFontFamily::Style style,
+                  const Measurer& measure) {
+  scratchRuns.clear();
+  splitIpaRuns(text, scratchRuns);
+  return std::accumulate(scratchRuns.begin(), scratchRuns.end(), 0, [&](int sum, const IpaTextSpan& run) {
+    return sum + measure(run.text.c_str(), style, run.isIpa);
   });
 }
 
@@ -110,7 +109,7 @@ void Wrapper::onSpan(const StyledSpan& span) {
     startLine(span.indentLevel, span.isListItem);
   }
 
-  const int spanWidth = getMixedWidth(span.text, style);
+  const int spanWidth = getMixedWidth(ipaRuns_, span.text, style, measure_);
   if (currentX_ + spanWidth <= maxWidth_) {
     // Fast path: entire span fits on the current line.
     appendMixed(span.text, style);
@@ -139,7 +138,7 @@ void Wrapper::onSpan(const StyledSpan& span) {
 
       bool lineIsEmpty = currentLine_.segments.empty();
       bool useSpace = !lineIsEmpty && hadSpace;
-      const int tokWidth = getMixedWidth(tok.c_str(), style);
+      const int tokWidth = getMixedWidth(ipaRuns_, tok.c_str(), style, measure_);
       const int spaceWidth = useSpace ? measure_(" ", style, false) : 0;
 
       if (currentX_ + spaceWidth + tokWidth > maxWidth_ && !lineIsEmpty) {
