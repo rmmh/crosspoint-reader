@@ -203,20 +203,9 @@ void DictionaryWordSelectActivity::extractWords(std::vector<WordSelectNavigator:
         } else {
           wordWidth = measureWordAdvanceX(renderer, SETTINGS.getReaderFontId(), wordText, wordStyle);
         }
-        {
-          uint16_t off = WordSelectNavigator::poolAppend(textPool, wordText.c_str(), wordText.size());
-          WordSelectNavigator::WordInfo wi;
-          wi.textOffset = off;
-          wi.textLen = static_cast<uint16_t>(wordText.size());
-          wi.lookupOffset = off;
-          wi.lookupLen = wi.textLen;
-          wi.screenX = screenX;
-          wi.screenY = screenY;
-          wi.width = wordWidth;
-          wi.style = wordStyle;
-          wi.fontId = SETTINGS.getReaderFontId();
-          words.push_back(wi);
-        }
+        WordSelectNavigator::appendWord(words, textPool, wordText.c_str(), wordText.size(), /*lookup=*/nullptr, 0,
+                                        screenX, screenY, wordWidth, wordStyle, SETTINGS.getReaderFontId(),
+                                        /*isIpa=*/false);
       } else {
         for (size_t si = 0; si < splitStarts.size(); si++) {
           size_t start = splitStarts[si];
@@ -242,20 +231,9 @@ void DictionaryWordSelectActivity::extractWords(std::vector<WordSelectNavigator:
           int16_t offsetX =
               prefix.empty() ? 0 : measureWordAdvanceX(renderer, SETTINGS.getReaderFontId(), prefix, wordStyle);
           int16_t partWidth = measureWordAdvanceX(renderer, SETTINGS.getReaderFontId(), part, wordStyle);
-          {
-            uint16_t off = WordSelectNavigator::poolAppend(textPool, part.c_str(), part.size());
-            WordSelectNavigator::WordInfo wi;
-            wi.textOffset = off;
-            wi.textLen = static_cast<uint16_t>(part.size());
-            wi.lookupOffset = off;
-            wi.lookupLen = wi.textLen;
-            wi.screenX = static_cast<int16_t>(screenX + offsetX);
-            wi.screenY = screenY;
-            wi.width = partWidth;
-            wi.style = wordStyle;
-            wi.fontId = SETTINGS.getReaderFontId();
-            words.push_back(wi);
-          }
+          WordSelectNavigator::appendWord(words, textPool, part.c_str(), part.size(), /*lookup=*/nullptr, 0,
+                                          static_cast<int16_t>(screenX + offsetX), screenY, partWidth, wordStyle,
+                                          SETTINGS.getReaderFontId(), /*isIpa=*/false);
         }
       }
 

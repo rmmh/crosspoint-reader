@@ -306,20 +306,9 @@ void DictionaryDefinitionActivity::extractWordsFromLayout() {
         const int tokAdvanceX = renderer.getTextAdvanceX(segFontId, tok.c_str(), seg.style);
         std::string cleaned = Dictionary::cleanWord(tok);
         if (!cleaned.empty()) {
-          uint16_t tokOff = WordSelectNavigator::poolAppend(textPool, tok.c_str(), tok.size());
-          uint16_t cleanedOff = WordSelectNavigator::poolAppend(textPool, cleaned.c_str(), cleaned.size());
-          WordSelectNavigator::WordInfo wi;
-          wi.textOffset = tokOff;
-          wi.textLen = static_cast<uint16_t>(tok.size());
-          wi.lookupOffset = cleanedOff;
-          wi.lookupLen = static_cast<uint16_t>(cleaned.size());
-          wi.screenX = static_cast<int16_t>(x);
-          wi.screenY = lineY;
-          wi.width = static_cast<int16_t>(tokVisualWidth);
-          wi.style = seg.style;
-          wi.isIpa = seg.isIpa;
-          wi.fontId = segFontId;
-          words.push_back(wi);
+          WordSelectNavigator::appendWord(words, textPool, tok.c_str(), tok.size(), cleaned.c_str(), cleaned.size(),
+                                          static_cast<int16_t>(x), lineY, static_cast<int16_t>(tokVisualWidth),
+                                          seg.style, segFontId, seg.isIpa);
         }
         x += tokAdvanceX;
       }

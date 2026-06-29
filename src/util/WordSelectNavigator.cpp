@@ -69,6 +69,34 @@ uint16_t WordSelectNavigator::poolAppend(std::string& pool, const char* s, size_
   return TextPool::append(pool, s, len);
 }
 
+void WordSelectNavigator::appendWord(std::vector<WordInfo>& words, std::string& pool, const char* display,
+                                     size_t displayLen, const char* lookup, size_t lookupLen, int16_t screenX,
+                                     int16_t screenY, int16_t width, EpdFontFamily::Style style, int fontId,
+                                     bool isIpa) {
+  const uint16_t textOff = poolAppend(pool, display, displayLen);
+  // lookup == nullptr: display text is also the lookup key; reuse its offset
+  // instead of appending a duplicate copy to the pool.
+  uint16_t lookupOff = textOff;
+  uint16_t lookupL = static_cast<uint16_t>(displayLen);
+  if (lookup) {
+    lookupOff = poolAppend(pool, lookup, lookupLen);
+    lookupL = static_cast<uint16_t>(lookupLen);
+  }
+
+  WordInfo wi;
+  wi.textOffset = textOff;
+  wi.textLen = static_cast<uint16_t>(displayLen);
+  wi.lookupOffset = lookupOff;
+  wi.lookupLen = lookupL;
+  wi.screenX = screenX;
+  wi.screenY = screenY;
+  wi.width = width;
+  wi.style = style;
+  wi.fontId = fontId;
+  wi.isIpa = isIpa;
+  words.push_back(wi);
+}
+
 void WordSelectNavigator::reset() {
   words.clear();
   rows.clear();

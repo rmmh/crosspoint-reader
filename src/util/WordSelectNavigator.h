@@ -77,6 +77,21 @@ class WordSelectNavigator {
   // Uses manual linear +256 growth to avoid std::string doubling.
   static uint16_t poolAppend(std::string& pool, const char* s, size_t len);
 
+  // Build a WordInfo from `display`/`lookup` text, append the text to `pool`,
+  // and push it onto `words`. Centralises the pool-append + WordInfo-fill +
+  // push_back boilerplate shared by the extraction routines in the Definition
+  // and WordSelect activities.
+  //
+  // When `lookup` is nullptr the display text doubles as the lookup text and is
+  // appended once (the EPUB word-select case, where the on-screen token is also
+  // the lookup key). When `lookup` is non-null it is appended separately (the
+  // definition case, where Dictionary::cleanWord produced a distinct key).
+  // continuation* default to -1; hyphenation pairing is wired up afterwards by
+  // mergeHyphenatedPairs.
+  static void appendWord(std::vector<WordInfo>& words, std::string& pool, const char* display, size_t displayLen,
+                         const char* lookup, size_t lookupLen, int16_t screenX, int16_t screenY, int16_t width,
+                         EpdFontFamily::Style style, int fontId, bool isIpa);
+
   // Process navigation input for the current screen orientation.
   // Returns true if the selection changed (caller should requestUpdate).
   // Does NOT consume Confirm or Back.
