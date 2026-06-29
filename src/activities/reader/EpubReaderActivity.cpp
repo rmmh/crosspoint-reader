@@ -587,19 +587,20 @@ void EpubReaderActivity::openReaderMenu() {
     }
   }
 
-  startActivityForResult(
-      std::make_unique<EpubReaderMenuActivity>(
-          renderer, mappedInput, epub->getTitle(), currentPage, totalPages, bookProgressPercent, SETTINGS.orientation,
-          !currentPageFootnotes.empty(), !cachedBookmarks.empty(), Dictionary::exists(epub->getCachePath().c_str()), std::move(activeDictName)),
-      [this](const ActivityResult& result) {
-        // Always apply orientation change even if the menu was cancelled
-        const auto& menu = std::get<MenuResult>(result.data);
-        applyOrientation(menu.orientation);
-        toggleAutoPageTurn(menu.pageTurnOption);
-        if (!result.isCancelled) {
-          onReaderMenuConfirm(static_cast<EpubReaderMenuActivity::MenuAction>(menu.action));
-        }
-      });
+  auto menuActivity = std::make_unique<EpubReaderMenuActivity>(
+      renderer, mappedInput, epub->getTitle(), currentPage, totalPages, bookProgressPercent, SETTINGS.orientation,
+      !currentPageFootnotes.empty(), !cachedBookmarks.empty(), Dictionary::exists(epub->getCachePath().c_str()),
+      std::move(activeDictName));
+  auto onMenuResult = [this](const ActivityResult& result) {
+    // Always apply orientation change even if the menu was cancelled
+    const auto& menu = std::get<MenuResult>(result.data);
+    applyOrientation(menu.orientation);
+    toggleAutoPageTurn(menu.pageTurnOption);
+    if (!result.isCancelled) {
+      onReaderMenuConfirm(static_cast<EpubReaderMenuActivity::MenuAction>(menu.action));
+    }
+  };
+  startActivityForResult(std::move(menuActivity), onMenuResult);
 }
 
 void EpubReaderActivity::openWordSelect(bool framebufferContainsPage) {

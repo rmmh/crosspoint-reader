@@ -10,8 +10,8 @@
 EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                                const std::string& title, const int currentPage, const int totalPages,
                                                const int bookProgressPercent, const uint8_t currentOrientation,
-                                               const bool hasFootnotes, bool hasBookmarks,
-                                               const bool hasDictionary, std::string activeDictName)
+                                               const bool hasFootnotes, bool hasBookmarks, const bool hasDictionary,
+                                               std::string activeDictName)
     : Activity("EpubReaderMenu", renderer, mappedInput),
       menuItems(buildMenuItems(hasFootnotes, hasBookmarks, hasDictionary)),
       title(title),
