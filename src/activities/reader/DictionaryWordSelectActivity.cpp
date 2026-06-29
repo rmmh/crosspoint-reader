@@ -366,19 +366,19 @@ void DictionaryWordSelectActivity::render(RenderLock&&) {
   const int currIdx = navigator.getCurrentFlatIndex();
 
   // Differential fast path. Only valid when:
-  //   - we set it up on the previous frame (RenderMode::Differential),
+  //   - we set it up on the previous frame (Mode::Differential),
   //   - the controller has nothing pending to draw,
   //   - we have a current selection.
-  if (nextRenderMode_ == RenderMode::Differential && !controller.isActive() && currIdx >= 0) {
+  if (diffRepaint_.canDifferential() && !controller.isActive() && currIdx >= 0) {
     prewarmHighlightGlyphs(currIdx);
-    auto dirty = navigator.renderHighlightDifferential(renderer, lineHeight, prevHighlightIdx_, currIdx);
+    auto dirty = navigator.renderHighlightDifferential(renderer, lineHeight, diffRepaint_.prevHighlightIdx, currIdx);
     if (dirty.has_value()) {
       // Push full panel — the SDK's windowed-refresh path produces alternating black→white
       // transition failures on consecutive fast partial refreshes, so it's intentionally not
       // wired up here. The savings come from skipping page->render, which dominates the
       // pre-optimization cost; the full push at the end is a hardware floor (~444ms).
       renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-      prevHighlightIdx_ = currIdx;
+      diffRepaint_.recordDifferentialPush(currIdx);
       return;
     }
     // Fall through to full repaint.
@@ -427,8 +427,7 @@ void DictionaryWordSelectActivity::render(RenderLock&&) {
       const auto labels = mappedInput.mapLabels("", "", "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-      prevHighlightIdx_ = currIdx;
-      nextRenderMode_ = snapshotPrimed ? RenderMode::Differential : RenderMode::FullPage;
+      diffRepaint_.primeAfterFullRepaint(currIdx, snapshotPrimed);
       return;
     }
     // Flag was set but conditions weren't met (controller active or no
@@ -439,8 +438,7 @@ void DictionaryWordSelectActivity::render(RenderLock&&) {
   renderer.clearScreen();
   if (controller.render()) {
     // Controller drew an overlay; framebuffer state is unknown.
-    nextRenderMode_ = RenderMode::FullPage;
-    prevHighlightIdx_ = -1;
+    diffRepaint_.reset();
     return;
   }
 
@@ -478,6 +476,5 @@ void DictionaryWordSelectActivity::render(RenderLock&&) {
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
-  prevHighlightIdx_ = currIdx;
-  nextRenderMode_ = snapshotPrimed ? RenderMode::Differential : RenderMode::FullPage;
+  diffRepaint_.primeAfterFullRepaint(currIdx, snapshotPrimed);
 }

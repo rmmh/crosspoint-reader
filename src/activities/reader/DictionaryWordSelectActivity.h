@@ -9,6 +9,7 @@
 
 #include "../Activity.h"
 #include "util/DictionaryLookupController.h"
+#include "util/DiffRepaintState.h"
 #include "util/WordSelectNavigator.h"
 
 class DictionaryWordSelectActivity final : public Activity {
@@ -53,9 +54,7 @@ class DictionaryWordSelectActivity final : public Activity {
   // new highlight, push only the dirty rect to the panel. State is reset to FullPage
   // whenever the framebuffer is disturbed by something other than the highlight
   // (controller overlay, multi-select, hyphenated wrap).
-  enum class RenderMode { FullPage, Differential };
-  RenderMode nextRenderMode_ = RenderMode::FullPage;
-  int prevHighlightIdx_ = -1;
+  DiffRepaintState diffRepaint_;
 
   // One-shot opt-in from the caller: "the framebuffer already contains the
   // page at marginLeft/marginTop (e.g. EpubReader just rendered it before the
@@ -78,10 +77,7 @@ class DictionaryWordSelectActivity final : public Activity {
   // this reset, the differential path would restore a small region of "page bg + word text"
   // onto a framebuffer full of unrelated content, and the next push would show that
   // unrelated content with one word's worth of correct page state overlaid.
-  void forceFullRepaintOnNextRender() {
-    nextRenderMode_ = RenderMode::FullPage;
-    prevHighlightIdx_ = -1;
-  }
+  void forceFullRepaintOnNextRender() { diffRepaint_.reset(); }
 
   // Batched bitmap-glyph prewarm for the word at currIdx, so the upcoming
   // drawText (inside renderHighlightDifferential / renderHighlight) doesn't

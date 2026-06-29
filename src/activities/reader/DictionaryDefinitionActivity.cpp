@@ -474,17 +474,17 @@ void DictionaryDefinitionActivity::loop() {
 void DictionaryDefinitionActivity::render(RenderLock&&) {
   // Differential fast path: only when we're already in word-select mode AND
   // we set it up on the previous frame AND the controller has nothing pending.
-  if (isWordSelectMode && nextRenderMode_ == RenderMode::Differential && !controller.isActive()) {
+  if (isWordSelectMode && diffRepaint_.canDifferential() && !controller.isActive()) {
     const int currIdx = navigator.getCurrentFlatIndex();
     if (currIdx >= 0) {
       const int lineHeight = getLineHeight();
-      auto dirty = navigator.renderHighlightDifferential(renderer, lineHeight, prevHighlightIdx_, currIdx);
+      auto dirty = navigator.renderHighlightDifferential(renderer, lineHeight, diffRepaint_.prevHighlightIdx, currIdx);
       if (dirty.has_value()) {
         // Full panel push — matches DictionaryWordSelectActivity. Windowed refresh is not
         // wired up because the SDK's experimental path produces alternating black→white
         // failures on consecutive partial refreshes. Savings come from skipping page->render.
         renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-        prevHighlightIdx_ = currIdx;
+        diffRepaint_.recordDifferentialPush(currIdx);
         return;
       }
       // fall through to full repaint path
@@ -495,8 +495,7 @@ void DictionaryDefinitionActivity::render(RenderLock&&) {
   renderer.clearScreen();
   if (controller.render()) {
     // Controller drew an overlay; framebuffer state is unknown.
-    nextRenderMode_ = RenderMode::FullPage;
-    prevHighlightIdx_ = -1;
+    diffRepaint_.reset();
     return;
   }
 
@@ -560,15 +559,13 @@ void DictionaryDefinitionActivity::render(RenderLock&&) {
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
-    prevHighlightIdx_ = currIdx;
-    nextRenderMode_ = snapshotPrimed ? RenderMode::Differential : RenderMode::FullPage;
+    diffRepaint_.primeAfterFullRepaint(currIdx, snapshotPrimed);
     return;
   }
 
   // View mode: differential state is irrelevant — reset so that the next entry
   // into word-select starts cleanly with a full repaint.
-  nextRenderMode_ = RenderMode::FullPage;
-  prevHighlightIdx_ = -1;
+  diffRepaint_.reset();
 
   // Pagination indicator and button hints
   if (totalPages > 1) {

@@ -9,6 +9,7 @@
 #include "../Activity.h"
 #include "util/DictLayout.h"
 #include "util/DictionaryLookupController.h"
+#include "util/DiffRepaintState.h"
 #include "util/IpaUtils.h"
 #include "util/LookupChain.h"
 #include "util/LookupHistory.h"
@@ -108,9 +109,7 @@ class DictionaryDefinitionActivity final : public Activity {
 
   // Differential repaint state for in-definition word-select mode. Only consulted
   // when isWordSelectMode is true; reset on every view-mode render.
-  enum class RenderMode { FullPage, Differential };
-  RenderMode nextRenderMode_ = RenderMode::FullPage;
-  int prevHighlightIdx_ = -1;
+  DiffRepaintState diffRepaint_;
 
   bool skipLoopDelay() override { return controller.skipLoopDelay(); }
 
