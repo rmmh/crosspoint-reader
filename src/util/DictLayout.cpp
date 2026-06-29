@@ -123,7 +123,15 @@ void Wrapper::onSpan(const StyledSpan& span) {
         hadSpace = true;
         ++p;
       }
-      if (!*p) break;
+      if (!*p) {
+        if (hadSpace) {
+          const int spaceWidth = measure_(" ", style, false);
+          if (currentX_ + spaceWidth <= maxWidth_) {
+            appendToLine(" ", style, false, spaceWidth);
+          }
+        }
+        break;
+      }
 
       const char* tokStart = p;
       while (*p && *p != ' ') ++p;

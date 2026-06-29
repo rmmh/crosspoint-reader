@@ -179,3 +179,23 @@ TEST(DictLayout, PageCollectorMatchesOracle) {
     }
   }
 }
+
+TEST(DictLayout, TrailingSpacePreservedOnWordWrap) {
+  const DictLayout::Measurer meas{nullptr, &fakeMeasure};
+  // Span 1: "xx" (2 chars)
+  // Span 2: "in the " (7 chars, including trailing space).
+  // Span 3: "shaw" (4 chars, bold).
+  // With maxWidth = 8, "in the " will exceed maxWidth and go to the word-wrap path.
+  // It should wrap to:
+  // Line 0: "xx in"
+  // Line 1: "the " + "shaw" -> "the shaw"
+  std::vector<StyledSpan> spans{mkSpan("xx "), mkSpan("in the "), mkSpan("shaw", false, /*bold=*/true)};
+  std::vector<DictLayout::LayoutLine> out;
+  DictLayout::wrapSpans(spans, DictLayout::WrapMetrics{8, 0, 0}, meas, out);
+  ASSERT_EQ(out.size(), 2u);
+  EXPECT_EQ(lineText(out[0]), "xx in");
+  EXPECT_EQ(lineText(out[1]), "the shaw");
+  ASSERT_EQ(out[1].segments.size(), 2u);
+  EXPECT_EQ(out[1].segments[0].text, "the ");
+  EXPECT_EQ(out[1].segments[1].text, "shaw");
+}
