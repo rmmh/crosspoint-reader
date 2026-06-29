@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
-#include <iterator>
 
 // Static member definitions
 char Dictionary::wordBuf[256] = "";
@@ -631,165 +630,177 @@ std::vector<std::string> Dictionary::getStemVariants(const std::string& word) {
     return len >= slen && word.compare(len - slen, slen, suffix) == 0;
   };
 
-  auto add = [&variants](const std::string& s) {
-    if (s.size() >= 2) variants.push_back(s);
+  // Build a variant into a reusable scratch buffer (keep the first `keep` chars
+  // of `word`, then append `suffix`) and push it only if it is at least 2 chars
+  // and not already present. Reusing `scratch` avoids the substr/concat
+  // temporaries the previous implementation allocated per branch, and the inline
+  // dedup (variants is bounded by reserve(8)) removes the O(n²) post-pass.
+  std::string scratch;
+  scratch.reserve(len + 4);
+  auto addVariant = [&variants, &scratch, &word](size_t keep, const char* suffix) {
+    scratch.assign(word, 0, keep);
+    scratch.append(suffix);
+    if (scratch.size() < 2) return;
+    if (std::find(variants.begin(), variants.end(), scratch) != variants.end()) return;
+    variants.push_back(scratch);
+  };
+  // Variant formed by dropping a leading prefix of `start` chars (prefix removal).
+  auto addTail = [&variants, &scratch, &word, len](size_t start) {
+    scratch.assign(word, start, len - start);
+    if (scratch.size() < 2) return;
+    if (std::find(variants.begin(), variants.end(), scratch) != variants.end()) return;
+    variants.push_back(scratch);
   };
 
   // Plurals
-  if (endsWith("sses")) add(word.substr(0, len - 2));
-  if (endsWith("ses")) add(word.substr(0, len - 2) + "is");
+  if (endsWith("sses")) addVariant(len - 2, "");
+  if (endsWith("ses")) addVariant(len - 2, "is");
   if (endsWith("ies")) {
-    add(word.substr(0, len - 3) + "y");
-    add(word.substr(0, len - 2));
+    addVariant(len - 3, "y");
+    addVariant(len - 2, "");
   }
   if (endsWith("ves")) {
-    add(word.substr(0, len - 3) + "f");
-    add(word.substr(0, len - 3) + "fe");
-    add(word.substr(0, len - 1));
+    addVariant(len - 3, "f");
+    addVariant(len - 3, "fe");
+    addVariant(len - 1, "");
   }
-  if (endsWith("men")) add(word.substr(0, len - 3) + "man");
+  if (endsWith("men")) addVariant(len - 3, "man");
   if (endsWith("es") && !endsWith("sses") && !endsWith("ies") && !endsWith("ves")) {
-    add(word.substr(0, len - 2));
-    add(word.substr(0, len - 1));
+    addVariant(len - 2, "");
+    addVariant(len - 1, "");
   }
   if (endsWith("s") && !endsWith("ss") && !endsWith("us") && !endsWith("es")) {
-    add(word.substr(0, len - 1));
+    addVariant(len - 1, "");
   }
 
   // Past tense
   if (endsWith("ied")) {
-    add(word.substr(0, len - 3) + "y");
-    add(word.substr(0, len - 1));
+    addVariant(len - 3, "y");
+    addVariant(len - 1, "");
   }
   if (endsWith("ed") && !endsWith("ied")) {
-    add(word.substr(0, len - 2));
-    add(word.substr(0, len - 1));
+    addVariant(len - 2, "");
+    addVariant(len - 1, "");
     if (len > 4 && word[len - 3] == word[len - 4]) {
-      add(word.substr(0, len - 3));
+      addVariant(len - 3, "");
     }
   }
 
   // Progressive
   if (endsWith("ying")) {
-    add(word.substr(0, len - 4) + "ie");
+    addVariant(len - 4, "ie");
   }
   if (endsWith("ing") && !endsWith("ying")) {
-    add(word.substr(0, len - 3));
-    add(word.substr(0, len - 3) + "e");
+    addVariant(len - 3, "");
+    addVariant(len - 3, "e");
     if (len > 5 && word[len - 4] == word[len - 5]) {
-      add(word.substr(0, len - 4));
+      addVariant(len - 4, "");
     }
   }
 
   // Adverb
   if (endsWith("ically")) {
-    add(word.substr(0, len - 6) + "ic");
-    add(word.substr(0, len - 4));
+    addVariant(len - 6, "ic");
+    addVariant(len - 4, "");
   }
   if (endsWith("ally") && !endsWith("ically")) {
-    add(word.substr(0, len - 4) + "al");
-    add(word.substr(0, len - 2));
+    addVariant(len - 4, "al");
+    addVariant(len - 2, "");
   }
   if (endsWith("ily") && !endsWith("ally")) {
-    add(word.substr(0, len - 3) + "y");
+    addVariant(len - 3, "y");
   }
   if (endsWith("ly") && !endsWith("ily") && !endsWith("ally")) {
-    add(word.substr(0, len - 2));
+    addVariant(len - 2, "");
   }
 
   // Comparative / superlative
   if (endsWith("ier")) {
-    add(word.substr(0, len - 3) + "y");
+    addVariant(len - 3, "y");
   }
   if (endsWith("er") && !endsWith("ier")) {
-    add(word.substr(0, len - 2));
-    add(word.substr(0, len - 1));
+    addVariant(len - 2, "");
+    addVariant(len - 1, "");
     if (len > 4 && word[len - 3] == word[len - 4]) {
-      add(word.substr(0, len - 3));
+      addVariant(len - 3, "");
     }
   }
   if (endsWith("iest")) {
-    add(word.substr(0, len - 4) + "y");
+    addVariant(len - 4, "y");
   }
   if (endsWith("est") && !endsWith("iest")) {
-    add(word.substr(0, len - 3));
-    add(word.substr(0, len - 2));
+    addVariant(len - 3, "");
+    addVariant(len - 2, "");
     if (len > 5 && word[len - 4] == word[len - 5]) {
-      add(word.substr(0, len - 4));
+      addVariant(len - 4, "");
     }
   }
 
   // Derivational suffixes
-  if (endsWith("ness")) add(word.substr(0, len - 4));
-  if (endsWith("ment")) add(word.substr(0, len - 4));
-  if (endsWith("ful")) add(word.substr(0, len - 3));
-  if (endsWith("less")) add(word.substr(0, len - 4));
+  if (endsWith("ness")) addVariant(len - 4, "");
+  if (endsWith("ment")) addVariant(len - 4, "");
+  if (endsWith("ful")) addVariant(len - 3, "");
+  if (endsWith("less")) addVariant(len - 4, "");
   if (endsWith("able")) {
-    add(word.substr(0, len - 4));
-    add(word.substr(0, len - 4) + "e");
+    addVariant(len - 4, "");
+    addVariant(len - 4, "e");
   }
   if (endsWith("ible")) {
-    add(word.substr(0, len - 4));
-    add(word.substr(0, len - 4) + "e");
+    addVariant(len - 4, "");
+    addVariant(len - 4, "e");
   }
   if (endsWith("ation")) {
-    add(word.substr(0, len - 5));
-    add(word.substr(0, len - 5) + "e");
-    add(word.substr(0, len - 5) + "ate");
+    addVariant(len - 5, "");
+    addVariant(len - 5, "e");
+    addVariant(len - 5, "ate");
   }
   if (endsWith("tion") && !endsWith("ation")) {
-    add(word.substr(0, len - 4) + "te");
-    add(word.substr(0, len - 3));
-    add(word.substr(0, len - 3) + "e");
+    addVariant(len - 4, "te");
+    addVariant(len - 3, "");
+    addVariant(len - 3, "e");
   }
   if (endsWith("ion") && !endsWith("tion")) {
-    add(word.substr(0, len - 3));
-    add(word.substr(0, len - 3) + "e");
+    addVariant(len - 3, "");
+    addVariant(len - 3, "e");
   }
   if (endsWith("al") && !endsWith("ial")) {
-    add(word.substr(0, len - 2));
-    add(word.substr(0, len - 2) + "e");
+    addVariant(len - 2, "");
+    addVariant(len - 2, "e");
   }
   if (endsWith("ial")) {
-    add(word.substr(0, len - 3));
-    add(word.substr(0, len - 3) + "e");
+    addVariant(len - 3, "");
+    addVariant(len - 3, "e");
   }
   if (endsWith("ous")) {
-    add(word.substr(0, len - 3));
-    add(word.substr(0, len - 3) + "e");
+    addVariant(len - 3, "");
+    addVariant(len - 3, "e");
   }
   if (endsWith("ive")) {
-    add(word.substr(0, len - 3));
-    add(word.substr(0, len - 3) + "e");
+    addVariant(len - 3, "");
+    addVariant(len - 3, "e");
   }
   if (endsWith("ize")) {
-    add(word.substr(0, len - 3));
-    add(word.substr(0, len - 3) + "e");
+    addVariant(len - 3, "");
+    addVariant(len - 3, "e");
   }
   if (endsWith("ise")) {
-    add(word.substr(0, len - 3));
-    add(word.substr(0, len - 3) + "e");
+    addVariant(len - 3, "");
+    addVariant(len - 3, "e");
   }
   if (endsWith("en")) {
-    add(word.substr(0, len - 2));
-    add(word.substr(0, len - 2) + "e");
+    addVariant(len - 2, "");
+    addVariant(len - 2, "e");
   }
 
   // Prefix removal
-  if (len > 5 && word.compare(0, 2, "un") == 0) add(word.substr(2));
-  if (len > 6 && word.compare(0, 3, "dis") == 0) add(word.substr(3));
-  if (len > 6 && word.compare(0, 3, "mis") == 0) add(word.substr(3));
-  if (len > 6 && word.compare(0, 3, "pre") == 0) add(word.substr(3));
-  if (len > 7 && word.compare(0, 4, "over") == 0) add(word.substr(4));
-  if (len > 5 && word.compare(0, 2, "re") == 0) add(word.substr(2));
+  if (len > 5 && word.compare(0, 2, "un") == 0) addTail(2);
+  if (len > 6 && word.compare(0, 3, "dis") == 0) addTail(3);
+  if (len > 6 && word.compare(0, 3, "mis") == 0) addTail(3);
+  if (len > 6 && word.compare(0, 3, "pre") == 0) addTail(3);
+  if (len > 7 && word.compare(0, 4, "over") == 0) addTail(4);
+  if (len > 5 && word.compare(0, 2, "re") == 0) addTail(2);
 
-  // Deduplicate preserving insertion order
-  std::vector<std::string> deduped;
-  deduped.reserve(variants.size());
-  std::copy_if(variants.begin(), variants.end(), std::back_inserter(deduped), [&deduped](const std::string& v) {
-    return std::find(deduped.begin(), deduped.end(), v) == deduped.end();
-  });
-  return deduped;
+  return variants;
 }
 
 // ---------------------------------------------------------------------------

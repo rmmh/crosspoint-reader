@@ -94,3 +94,42 @@ TEST(DictFindSimilar, ReturnsEmptyWhenNoDictionary) {
   const auto results = Dictionary::findSimilar("grace", 6, cache.c_str());
   EXPECT_TRUE(results.empty());
 }
+
+// getStemVariants strips inflectional/derivational suffixes (and a few prefixes)
+// to produce candidate base forms. These tests pin the behavior so the
+// allocation-reduction refactor (reusable scratch buffer + inline dedup) stays
+// equivalent to the previous substr/concat implementation.
+
+TEST(DictStemVariants, TooShortYieldsNothing) {
+  EXPECT_TRUE(Dictionary::getStemVariants("go").empty());
+}
+
+TEST(DictStemVariants, RegularPlural) {
+  EXPECT_TRUE(contains(Dictionary::getStemVariants("cats"), "cat"));
+}
+
+TEST(DictStemVariants, IesPlural) {
+  const auto v = Dictionary::getStemVariants("parties");
+  EXPECT_TRUE(contains(v, "party"));
+}
+
+TEST(DictStemVariants, PastTense) {
+  EXPECT_TRUE(contains(Dictionary::getStemVariants("walked"), "walk"));
+}
+
+TEST(DictStemVariants, ProgressiveWithDoubledConsonant) {
+  const auto v = Dictionary::getStemVariants("running");
+  EXPECT_TRUE(contains(v, "run"));
+}
+
+TEST(DictStemVariants, PrefixRemoval) {
+  EXPECT_TRUE(contains(Dictionary::getStemVariants("unhappy"), "happy"));
+}
+
+TEST(DictStemVariants, NoDuplicates) {
+  const auto v = Dictionary::getStemVariants("blesses");
+  std::vector<std::string> sorted = v;
+  std::sort(sorted.begin(), sorted.end());
+  EXPECT_EQ(std::adjacent_find(sorted.begin(), sorted.end()), sorted.end())
+      << "getStemVariants must not return duplicate variants";
+}
