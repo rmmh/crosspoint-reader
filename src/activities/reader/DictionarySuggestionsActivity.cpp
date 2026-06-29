@@ -38,15 +38,11 @@ void DictionarySuggestionsActivity::loop() {
 
 void DictionarySuggestionsActivity::render(RenderLock&&) {
   renderer.clearScreen();
-  const int pageWidth = renderer.getScreenWidth();
-  const int pageHeight = renderer.getScreenHeight();
-  const auto& metrics = UITheme::getInstance().getMetrics();
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_DICT_DID_YOU_MEAN));
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
-  const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
+  GUI.drawHeader(renderer, UITheme::headerRect(renderer), tr(STR_DICT_DID_YOU_MEAN));
+  const Rect content = UITheme::contentRect(renderer);
   GUI.drawList(
-      renderer, Rect{0, contentTop, pageWidth, contentHeight}, static_cast<int>(suggestions.size()), selectedIndex,
-      [this](int i) { return suggestions[i]; }, nullptr, nullptr, nullptr, true);
+      renderer, content, static_cast<int>(suggestions.size()), selectedIndex, [this](int i) { return suggestions[i]; },
+      nullptr, nullptr, nullptr, true);
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);

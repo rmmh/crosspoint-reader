@@ -152,16 +152,11 @@ void LookedUpWordsActivity::render(RenderLock&&) {
   renderer.clearScreen();
   if (controller.render()) return;
 
-  const int pageWidth = renderer.getScreenWidth();
-  const int pageHeight = renderer.getScreenHeight();
-  const auto& metrics = UITheme::getInstance().getMetrics();
-
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_LOOKUP_HISTORY));
-
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  GUI.drawHeader(renderer, UITheme::headerRect(renderer), tr(STR_LOOKUP_HISTORY));
+  const Rect content = UITheme::contentRect(renderer);
 
   if (entries.empty()) {
-    const int midY = contentTop + (pageHeight - contentTop - metrics.buttonHintsHeight) / 2;
+    const int midY = content.y + content.height / 2;
     renderer.drawCenteredText(UI_10_FONT_ID, midY, tr(STR_LOOKUP_HISTORY_EMPTY));
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -169,10 +164,8 @@ void LookedUpWordsActivity::render(RenderLock&&) {
     return;
   }
 
-  const int contentHeight = pageHeight - metrics.buttonHintsHeight - contentTop - metrics.verticalSpacing;
-
   GUI.drawList(
-      renderer, Rect{0, contentTop, pageWidth, contentHeight}, static_cast<int>(entries.size()), selectedIndex,
+      renderer, content, static_cast<int>(entries.size()), selectedIndex,
       [this](int i) { return std::string(glyphFor(entries[i].status)) + " " + entries[i].word; }, nullptr, nullptr,
       nullptr, false);
 

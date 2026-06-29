@@ -413,19 +413,17 @@ void DictionarySelectActivity::render(RenderLock&&) {
   }
 
   // --- Picker screen ---
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_DICTIONARY));
-
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
-  const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
+  GUI.drawHeader(renderer, UITheme::headerRect(renderer), tr(STR_DICTIONARY));
+  const Rect content = UITheme::contentRect(renderer);
 
   // Show "None found" note when no dictionaries are available
   if (dictFolders.empty()) {
-    const int textY = contentTop + contentHeight / 3;
+    const int textY = content.y + content.height / 3;
     renderer.drawCenteredText(UI_10_FONT_ID, textY, tr(STR_DICT_NONE_FOUND));
   }
 
   GUI.drawList(
-      renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, selectedIndex,
+      renderer, content, totalItems, selectedIndex,
       [this](int index) { return std::string(nameForIndex(index)); }, nullptr, nullptr,
       [this](int index) -> std::string {
         // Show "Selected" marker for the currently active dictionary.
