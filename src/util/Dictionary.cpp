@@ -1,5 +1,7 @@
 #include "Dictionary.h"
 
+#include "TextPool.h"
+
 #include <HalStorage.h>
 #include <Logging.h>
 
@@ -878,9 +880,13 @@ std::vector<std::string> Dictionary::findSimilar(const std::string& word, int ma
 
   int maxDist = std::max(2, static_cast<int>(word.size()) / 3 + 1);
 
+  // Collect candidate words into one pooled buffer and sort lightweight
+  // {offset, distance} records — avoids a heap std::string per candidate.
+  std::string pool;
+  pool.reserve(256);
   struct Candidate {
-    std::string text;
-    int distance;
+    uint16_t offset;
+    uint16_t distance;
   };
   std::vector<Candidate> candidates;
   candidates.reserve(static_cast<size_t>(maxResults) * 4);
@@ -897,7 +903,10 @@ std::vector<std::string> Dictionary::findSimilar(const std::string& word, int ma
 
     int dist = editDistance(wordBuf, word, maxDist);
     if (dist <= maxDist) {
-      candidates.push_back({std::string(wordBuf, static_cast<size_t>(len)), dist});
+      // Stop pooling if the offset would overflow uint16_t (pathological window).
+      if (pool.size() + static_cast<size_t>(len) + 1 > 0xFFFF) break;
+      const uint16_t offset = TextPool::append(pool, wordBuf, static_cast<size_t>(len));
+      candidates.push_back({offset, static_cast<uint16_t>(dist)});
     }
   }
 
@@ -909,7 +918,7 @@ std::vector<std::string> Dictionary::findSimilar(const std::string& word, int ma
   std::vector<std::string> results;
   results.reserve(static_cast<size_t>(maxResults));
   for (size_t i = 0; i < candidates.size() && static_cast<int>(results.size()) < maxResults; i++) {
-    results.push_back(candidates[i].text);
+    results.emplace_back(pool.data() + candidates[i].offset);
   }
   return results;
 }

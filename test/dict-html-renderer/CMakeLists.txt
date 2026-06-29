@@ -14,7 +14,7 @@ add_executable(DictHtmlRendererTest
 )
 
 target_include_directories(DictHtmlRendererTest PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/stubs  # overrides HalStorage.h / Logging.h (device-only)
+  ${REPO_ROOT}/test/stubs  # overrides HalStorage.h / Logging.h (device-only)
   ${REPO_ROOT}
   ${REPO_ROOT}/lib
   ${REPO_ROOT}/lib/expat
