@@ -402,7 +402,8 @@ void DictionaryWordSelectActivity::render(RenderLock&&) {
         // on entry.
         navigator.renderHighlight(renderer, lineHeight);
       }
-      const auto labels = mappedInput.mapLabels("", "", "", "");
+      const auto labels =
+          mappedInput.mapLabels(tr(STR_BACK), tr(STR_LOOKUP_SHORT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       renderer.displayBuffer(HalDisplay::FAST_REFRESH);
       diffRepaint_.primeAfterFullRepaint(currIdx, snapshotPrimed);
@@ -450,7 +451,7 @@ void DictionaryWordSelectActivity::render(RenderLock&&) {
     navigator.renderHighlight(renderer, lineHeight);
   }
 
-  const auto labels = mappedInput.mapLabels("", "", "", "");
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_LOOKUP_SHORT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 

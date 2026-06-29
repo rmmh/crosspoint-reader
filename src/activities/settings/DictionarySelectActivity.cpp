@@ -262,6 +262,11 @@ void DictionarySelectActivity::render(RenderLock&&) {
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
   const auto& metrics = UITheme::getInstance().getMetrics();
+  const int helpLineHeight = renderer.getLineHeight(UI_10_FONT_ID);
+  const auto helpLines =
+      renderer.wrappedText(UI_10_FONT_ID, tr(STR_DICT_ADD_HINT), pageWidth - metrics.contentSidePadding * 2, 2);
+  const int helpHeight =
+      helpLines.empty() ? 0 : static_cast<int>(helpLines.size()) * helpLineHeight + metrics.verticalSpacing;
 
   if (showingInfo) {
     GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_DICT_INFO));
@@ -414,7 +419,10 @@ void DictionarySelectActivity::render(RenderLock&&) {
 
   // --- Picker screen ---
   GUI.drawHeader(renderer, UITheme::headerRect(renderer), tr(STR_DICTIONARY));
-  const Rect content = UITheme::contentRect(renderer);
+  Rect content = UITheme::contentRect(renderer);
+  if (helpHeight > 0) {
+    content.height = std::max(0, content.height - helpHeight);
+  }
 
   // Show "None found" note when no dictionaries are available
   if (dictFolders.empty()) {
@@ -423,8 +431,8 @@ void DictionarySelectActivity::render(RenderLock&&) {
   }
 
   GUI.drawList(
-      renderer, content, totalItems, selectedIndex,
-      [this](int index) { return std::string(nameForIndex(index)); }, nullptr, nullptr,
+      renderer, content, totalItems, selectedIndex, [this](int index) { return std::string(nameForIndex(index)); },
+      nullptr, nullptr,
       [this](int index) -> std::string {
         // Show "Selected" marker for the currently active dictionary.
         // In per-book mode compare against currentBookDictPath; in settings mode against global.
@@ -435,6 +443,12 @@ void DictionarySelectActivity::render(RenderLock&&) {
         return "";
       },
       true);
+
+  int helpY = content.y + content.height + metrics.verticalSpacing;
+  for (const auto& line : helpLines) {
+    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, helpY, line.c_str());
+    helpY += helpLineHeight;
+  }
 
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
