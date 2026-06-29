@@ -79,7 +79,7 @@ static WordSelectNavigator makeHyphenatedFixture() {
   WordSelectNavigator::mergeHyphenatedPairs(words, rows, pool);
 
   WordSelectNavigator nav;
-  nav.load(std::move(words), std::move(rows), std::move(pool));
+  nav.load(std::move(words), std::move(rows), std::move(pool), false, 280);
   return nav;
 }
 
@@ -151,7 +151,7 @@ static WordSelectNavigator makeHyphenBothFixture() {
   WordSelectNavigator::mergeHyphenatedPairs(words, rows, pool);
 
   WordSelectNavigator nav;
-  nav.load(std::move(words), std::move(rows), std::move(pool));
+  nav.load(std::move(words), std::move(rows), std::move(pool), false, 280);
   return nav;
 }
 
@@ -180,7 +180,54 @@ static WordSelectNavigator makeSingleRowHyphenatedFixture() {
   WordSelectNavigator::organizeIntoRows(words, rows);
 
   WordSelectNavigator nav;
-  nav.load(std::move(words), std::move(rows), std::move(pool));
+  nav.load(std::move(words), std::move(rows), std::move(pool), false, 85);
+  return nav;
+}
+
+// Row 0: leftA(10) centerA(120) rightA(260)
+// Row 1: bridge(20)
+// Row 2: leftC(10) centerC(120) rightC(260)
+//
+// This reproduces the "last word of a paragraph snaps left" problem: moving
+// vertically through the sparse middle row should keep the original right-edge
+// intent instead of inheriting bridge's far-left X.
+static WordSelectNavigator makeVerticalMemoryFixture() {
+  std::string pool;
+
+  WordSelectNavigator::WordInfo w0 = mkWord("leftA", 10, 0, 40, 0);
+  w0.textOffset = poolAppendString(pool, "leftA");
+  w0.lookupOffset = w0.textOffset;
+
+  WordSelectNavigator::WordInfo w1 = mkWord("centerA", 120, 0, 55, 0);
+  w1.textOffset = poolAppendString(pool, "centerA");
+  w1.lookupOffset = w1.textOffset;
+
+  WordSelectNavigator::WordInfo w2 = mkWord("rightA", 260, 0, 50, 0);
+  w2.textOffset = poolAppendString(pool, "rightA");
+  w2.lookupOffset = w2.textOffset;
+
+  WordSelectNavigator::WordInfo w3 = mkWord("bridge", 20, 20, 45, 1);
+  w3.textOffset = poolAppendString(pool, "bridge");
+  w3.lookupOffset = w3.textOffset;
+
+  WordSelectNavigator::WordInfo w4 = mkWord("leftC", 10, 40, 40, 2);
+  w4.textOffset = poolAppendString(pool, "leftC");
+  w4.lookupOffset = w4.textOffset;
+
+  WordSelectNavigator::WordInfo w5 = mkWord("centerC", 120, 40, 55, 2);
+  w5.textOffset = poolAppendString(pool, "centerC");
+  w5.lookupOffset = w5.textOffset;
+
+  WordSelectNavigator::WordInfo w6 = mkWord("rightC", 260, 40, 50, 2);
+  w6.textOffset = poolAppendString(pool, "rightC");
+  w6.lookupOffset = w6.textOffset;
+
+  std::vector<WordSelectNavigator::WordInfo> words = {w0, w1, w2, w3, w4, w5, w6};
+  std::vector<WordSelectNavigator::Row> rows;
+  WordSelectNavigator::organizeIntoRows(words, rows);
+
+  WordSelectNavigator nav;
+  nav.load(std::move(words), std::move(rows), std::move(pool), false, 280);
   return nav;
 }
 
@@ -226,17 +273,16 @@ static void runHyphenNavSuite(WordSelectNavigator (*make)(), const char* firstHa
     EXPECT_TRUE(sel && std::strcmp(nav.getDisplay(*sel), "wordD") == 0) << "B: second Right skips second half -> wordD";
   }
 
-  // C: Up from wordD goes to first half; Down row-navigates to second half and
-  //    stays there (no snap back to first half).
+  // C: Row navigation may still land on the second half when the desired X
+  //    matches it; it should not be snapped away to the first half.
   {
-    SCOPED_TRACE("C: Up to first half, Down stays on second half");
+    SCOPED_TRACE("C: row nav lands on second half without snapping");
     WordSelectNavigator nav = make();
     MappedInputManager input;
     GfxRenderer renderer;
-    input.reset();
-    input.setReleased(MappedInputManager::Button::Up, true);
-    nav.handleNavigation(input, renderer);
-    EXPECT_STREQ(nav.getDisplay(*nav.getSelected()), firstHalf) << "C: Up reaches first half";
+
+    navigateTo(nav, input, renderer, firstHalf);
+    EXPECT_STREQ(nav.getDisplay(*nav.getSelected()), firstHalf) << "C: on first half after horizontal nav";
     input.reset();
     input.setReleased(MappedInputManager::Button::Down, true);
     nav.handleNavigation(input, renderer);
@@ -270,9 +316,8 @@ static void runHyphenNavSuite(WordSelectNavigator (*make)(), const char* firstHa
     WordSelectNavigator nav = make();
     MappedInputManager input;
     GfxRenderer renderer;
-    input.reset();
-    input.setReleased(MappedInputManager::Button::Up, true);
-    nav.handleNavigation(input, renderer);
+
+    navigateTo(nav, input, renderer, firstHalf);
     input.reset();
     input.setReleased(MappedInputManager::Button::Down, true);
     nav.handleNavigation(input, renderer);
@@ -382,13 +427,8 @@ TEST(WordSelectNavigator, HyphenatedNavRowNavExempt) {
   MappedInputManager input;
   GfxRenderer renderer;
 
-  // Navigate to under- (first half, row 0) via row-nav (Up from wordD).
-  // Using Up avoids the wordPrev→snap path, which would leave pendingSnapIdx
-  // pointing at stand and cause the subsequent Down to mis-navigate.
-  input.reset();
-  input.setReleased(MappedInputManager::Button::Up, true);
-  nav.handleNavigation(input, renderer);
-  EXPECT_STREQ(nav.getDisplay(*nav.getSelected()), "under-") << "arrived at 'under-' via row-nav";
+  navigateTo(nav, input, renderer, "under-");
+  EXPECT_STREQ(nav.getDisplay(*nav.getSelected()), "under-") << "arrived at 'under-' via horizontal nav";
 
   // Press Down -> findClosestWord on row 1 picks stand (same X=200).
   // Row navigation should NOT snap back to under-; cursor stays on stand.
@@ -511,13 +551,8 @@ TEST(WordSelectNavigator, HyphenatedNavFromSecondHalfLeft) {
   MappedInputManager input;
   GfxRenderer renderer;
 
-  // Navigate to under- via Up (row-nav) to avoid leaving pendingSnapIdx set.
-  // If navigateTo were used, it would arrive via the wordPrev snap path and set
-  // pendingSnapIdx=stand, causing the subsequent Down to wrap back to row 0.
-  input.reset();
-  input.setReleased(MappedInputManager::Button::Up, true);
-  nav.handleNavigation(input, renderer);
-  EXPECT_STREQ(nav.getDisplay(*nav.getSelected()), "under-") << "arrived at 'under-' via row-nav";
+  navigateTo(nav, input, renderer, "under-");
+  EXPECT_STREQ(nav.getDisplay(*nav.getSelected()), "under-") << "arrived at 'under-' via horizontal nav";
 
   // Down: row nav from row 0 → row 1, closest X to under-(200) is stand(200).
   input.reset();
@@ -534,6 +569,81 @@ TEST(WordSelectNavigator, HyphenatedNavFromSecondHalfLeft) {
   if (sel) {
     EXPECT_STREQ(nav.getDisplay(*sel), "wordB") << "one Left from second half skips first half and lands on 'wordB'";
   }
+}
+
+TEST(WordSelectNavigator, ConsecutiveRowNavPreservesHorizontalIntentUpward) {
+  WordSelectNavigator nav = makeVerticalMemoryFixture();
+  MappedInputManager input;
+  GfxRenderer renderer;
+
+  navigateTo(nav, input, renderer, "rightC");
+  ASSERT_STREQ(nav.getDisplay(*nav.getSelected()), "rightC") << "start on right edge of bottom row";
+
+  input.reset();
+  input.setReleased(MappedInputManager::Button::Up, true);
+  nav.handleNavigation(input, renderer);
+  ASSERT_STREQ(nav.getDisplay(*nav.getSelected()), "bridge") << "first Up must use closest word on sparse row";
+
+  input.reset();
+  input.setReleased(MappedInputManager::Button::Up, true);
+  nav.handleNavigation(input, renderer);
+  EXPECT_STREQ(nav.getDisplay(*nav.getSelected()), "rightA")
+      << "second Up should keep the original right-edge column, not bridge's left X";
+}
+
+TEST(WordSelectNavigator, ConsecutiveRowNavPreservesHorizontalIntentDownward) {
+  WordSelectNavigator nav = makeVerticalMemoryFixture();
+  MappedInputManager input;
+  GfxRenderer renderer;
+
+  navigateTo(nav, input, renderer, "rightA");
+  ASSERT_STREQ(nav.getDisplay(*nav.getSelected()), "rightA") << "start on right edge of top row";
+
+  input.reset();
+  input.setReleased(MappedInputManager::Button::Down, true);
+  nav.handleNavigation(input, renderer);
+  ASSERT_STREQ(nav.getDisplay(*nav.getSelected()), "bridge") << "first Down must use closest word on sparse row";
+
+  input.reset();
+  input.setReleased(MappedInputManager::Button::Down, true);
+  nav.handleNavigation(input, renderer);
+  EXPECT_STREQ(nav.getDisplay(*nav.getSelected()), "rightC")
+      << "second Down should keep the original right-edge column, not bridge's left X";
+}
+
+TEST(WordSelectNavigator, InitialSelectionUsesPreferredXOnMiddleRow) {
+  std::string pool;
+
+  WordSelectNavigator::WordInfo w0 = mkWord("left", 10, 0, 40, 0);
+  w0.textOffset = poolAppendString(pool, "left");
+  w0.lookupOffset = w0.textOffset;
+
+  WordSelectNavigator::WordInfo w1 = mkWord("middle-left", 40, 20, 60, 1);
+  w1.textOffset = poolAppendString(pool, "middle-left");
+  w1.lookupOffset = w1.textOffset;
+
+  WordSelectNavigator::WordInfo w2 = mkWord("middle-center", 130, 20, 70, 1);
+  w2.textOffset = poolAppendString(pool, "middle-center");
+  w2.lookupOffset = w2.textOffset;
+
+  WordSelectNavigator::WordInfo w3 = mkWord("middle-right", 250, 20, 65, 1);
+  w3.textOffset = poolAppendString(pool, "middle-right");
+  w3.lookupOffset = w3.textOffset;
+
+  WordSelectNavigator::WordInfo w4 = mkWord("bottom", 10, 40, 50, 2);
+  w4.textOffset = poolAppendString(pool, "bottom");
+  w4.lookupOffset = w4.textOffset;
+
+  std::vector<WordSelectNavigator::WordInfo> words = {w0, w1, w2, w3, w4};
+  std::vector<WordSelectNavigator::Row> rows;
+  WordSelectNavigator::organizeIntoRows(words, rows);
+
+  WordSelectNavigator nav;
+  nav.load(std::move(words), std::move(rows), std::move(pool), false, 280);
+
+  ASSERT_NE(nav.getSelected(), nullptr);
+  EXPECT_STREQ(nav.getDisplay(*nav.getSelected()), "middle-right")
+      << "load() should pick the word on the middle row closest to the preferred X";
 }
 
 // renderHighlight on a non-hyphenated word: exactly 1 fillRect + 1 drawText.
@@ -572,11 +682,7 @@ TEST(WordSelectNavigator, RenderHighlightHyphenatedFromSecondHalf) {
   MappedInputManager input;
   GfxRenderer renderer;
 
-  // Row-nav Down from under- lands on stand (second half, same X).
-  // Navigate to under- via Up (row-nav) to avoid leaving pendingSnapIdx set.
-  input.reset();
-  input.setReleased(MappedInputManager::Button::Up, true);
-  nav.handleNavigation(input, renderer);
+  navigateTo(nav, input, renderer, "under-");
   input.reset();
   input.setReleased(MappedInputManager::Button::Down, true);
   nav.handleNavigation(input, renderer);
@@ -673,11 +779,7 @@ TEST(WordSelectNavigator, RenderHighlightMultiSelectHyphenatedSecondHalf) {
   ASSERT_TRUE(nav.getSelected() != nullptr && std::strcmp(nav.getDisplay(*nav.getSelected()), "wordD") == 0)
       << "fixture starts on 'wordD'";
 
-  // Row-nav Down from initial wordD position lands on stand (via row nav, exempt from snap).
-  // Navigate to wordD first, then Up to row 0, then Down to row 1 to land on stand.
-  input.reset();
-  input.setReleased(MappedInputManager::Button::Up, true);
-  nav.handleNavigation(input, renderer);
+  navigateTo(nav, input, renderer, "under-");
   input.reset();
   input.setReleased(MappedInputManager::Button::Down, true);
   nav.handleNavigation(input, renderer);
@@ -806,7 +908,7 @@ TEST(WordSelectNavigator, HyphenBothEndsNotPaired) {
   EXPECT_EQ(words[3].continuationOf, -1) << "Test not paired: continuationOf must stay -1 after merge";
 
   WordSelectNavigator nav;
-  nav.load(std::move(words), std::move(rows), std::move(pool));
+  nav.load(std::move(words), std::move(rows), std::move(pool), false, 280);
   MappedInputManager input;
   GfxRenderer renderer;
 

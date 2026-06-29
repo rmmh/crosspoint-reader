@@ -316,7 +316,7 @@ void DictionaryDefinitionActivity::extractWordsFromLayout() {
   }
 
   WordSelectNavigator::organizeIntoRows(words, rows);
-  navigator.load(std::move(words), std::move(rows), std::move(textPool));
+  navigator.load(std::move(words), std::move(rows), std::move(textPool), false, renderer.getScreenWidth() / 2);
 }
 
 // ---------------------------------------------------------------------------

@@ -61,7 +61,8 @@ void DictionaryWordSelectActivity::onEnter() {
   // already released Confirm by the time we open, so consuming would swallow the user's
   // first deliberate tap and force them to press twice.
   const bool consumeInitialConfirm = mappedInput.isPressed(MappedInputManager::Button::Confirm);
-  navigator.load(std::move(words), std::move(rows), std::move(textPool), consumeInitialConfirm);
+  navigator.load(std::move(words), std::move(rows), std::move(textPool), consumeInitialConfirm,
+                 renderer.getScreenWidth() / 2);
   requestUpdate();
 }
 

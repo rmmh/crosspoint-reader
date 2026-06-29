@@ -50,11 +50,13 @@ class WordSelectNavigator {
   };
 
   // Load pre-populated, pre-organised words, rows, and string pool.
-  // Centres the initial selection on the middle row.
+  // Starts on the middle row and picks the word on that row whose center is
+  // closest to initialPreferredX. The same X is then used as the initial
+  // desired row-navigation position.
   // When consumeInitialConfirm is true, the first Confirm release is ignored
   // (prevents the long-press that opened word selection from also triggering multi-select).
   void load(std::vector<WordInfo> words, std::vector<Row> rows, std::string textPool,
-            bool consumeInitialConfirm = false);
+            bool consumeInitialConfirm, int initialPreferredX);
 
   // Access null-terminated display text from the pool.
   const char* getDisplay(const WordInfo& w) const { return textPool.data() + w.textOffset; }
@@ -239,6 +241,12 @@ class WordSelectNavigator {
   // rowPrev/rowNext to reference that half's position rather than the first half's.
   // -1 means inactive.
   int pendingSnapIdx = -1;
+
+  // Preferred X position for consecutive row navigation. Preserves the user's
+  // horizontal intent across rows even if an intermediate row can only land on
+  // a far-left or far-right word (for example, the last word of a paragraph).
+  // Cleared by horizontal navigation.
+  int preferredRowNavX = -1;
 
   // Snapshot of pixels under the most recently drawn highlight. Used by
   // renderHighlightDifferential to restore the framebuffer before drawing the
