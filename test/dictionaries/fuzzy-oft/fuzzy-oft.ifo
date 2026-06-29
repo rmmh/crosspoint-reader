@@ -1,8 +1,0 @@
-StarDict's dict ifo file
-version=stardict-2.4.2
-wordcount=1500
-idxfilesize=37500
-bookname=Fuzzy OFT Test
-sametypesequence=m
-author=CrossPoint Test Suite
-description=Multi-page synthetic dictionary for fuzzy-search OFT binary-search tests.

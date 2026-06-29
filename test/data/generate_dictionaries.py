@@ -217,7 +217,10 @@ def write_or_compress(path: str, data: bytes, compress: bool) -> None:
     if compress:
         with open(path + ".dz", "wb") as f:
             # mtime=0 produces byte-stable gzip output across regenerations.
-            f.write(gzip.compress(data, compresslevel=6, mtime=0))
+            compressed = gzip.compress(data, compresslevel=6, mtime=0)
+            if len(compressed) >= 10:
+                compressed = compressed[:9] + b"\x03" + compressed[10:]
+            f.write(compressed)
     else:
         with open(path, "wb") as f:
             f.write(data)

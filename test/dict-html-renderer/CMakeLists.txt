@@ -34,4 +34,6 @@ target_link_libraries(DictHtmlRendererTest PRIVATE
   GTest::gtest_main
 )
 
+add_dependencies(DictHtmlRendererTest generate_test_dictionaries)
+
 gtest_discover_tests(DictHtmlRendererTest)

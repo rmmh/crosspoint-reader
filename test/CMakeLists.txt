@@ -35,6 +35,44 @@ target_compile_options(crosspoint_test_common INTERFACE
   -pedantic
 )
 
+# Automatically regenerate test dictionaries if JSON sources/generator script change, or if files are missing.
+file(GLOB DICTIONARY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/data/dictionary-sources/*.json")
+
+set(GENERATED_DICTS
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/chain-stress/chain-stress.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/en-es/en-es.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/english-full/english-full.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/english-no-syn/english-no-syn.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/fuzzy-oft/fuzzy-oft.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/html-definitions/html-definitions.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/ipa-phonetic/ipa-phonetic.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/macos-metadata/macos-metadata.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/multi-idx/multi-idx.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/multi-ifo/multi-ifo.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/no-ifo/no-ifo.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/only-dict/only-dict.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/overflow-fields/overflow-fields.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/phrase/phrase.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/prep-cspt-prefix-collision/prep-cspt-prefix-collision.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/prep-extract-dict/prep-extract-dict.dict.dz"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/prep-fail-decompress/prep-fail-decompress.dict.dz"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/prep-gen-idx/prep-gen-idx.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/prep-gen-syn/prep-gen-syn.dict"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/prep-mini/prep-mini.dict.dz"
+  "${CMAKE_CURRENT_SOURCE_DIR}/dictionaries/prep-syn-two-step/prep-syn-two-step.dict"
+)
+
+add_custom_command(
+  OUTPUT ${GENERATED_DICTS}
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/data/generate_dictionaries.py" --all
+  DEPENDS ${DICTIONARY_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/data/generate_dictionaries.py"
+  COMMENT "Regenerating test dictionaries..."
+)
+
+add_custom_target(generate_test_dictionaries ALL
+  DEPENDS ${GENERATED_DICTS}
+)
+
 enable_testing()
 include(GoogleTest)
 

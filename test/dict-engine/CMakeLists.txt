@@ -19,4 +19,6 @@ target_link_libraries(DictEngineTest PRIVATE
   GTest::gtest_main
 )
 
+add_dependencies(DictEngineTest generate_test_dictionaries)
+
 gtest_discover_tests(DictEngineTest)
